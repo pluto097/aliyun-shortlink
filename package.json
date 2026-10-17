@@ -1,0 +1,25 @@
+{
+  "name": "aliyun-shortlink",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Zero-dependency short link service that runs on both Aliyun Function Compute 3.0 and Cloudflare Pages / Workers.",
+  "keywords": [
+    "shortlink",
+    "url-shortener",
+    "aliyun",
+    "function-compute",
+    "cloudflare-pages",
+    "workers",
+    "serverless"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "dev": "node fc/server.mjs --dev",
+    "start": "node fc/server.mjs",
+    "test": "node --test"
+  }
+}

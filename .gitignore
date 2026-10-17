@@ -1,0 +1,25 @@
+# dependencies (this project is zero-dependency, but be safe)
+node_modules/
+
+# tooling / local state
+.wrangler/
+.serverless/
+.s.yaml.lock
+.dev.vars
+.env
+.env.*
+!.env.example
+
+# local data & logs
+data/
+*.log
+npm-debug.log*
+
+# os
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# editors
+.vscode/
+.idea/
