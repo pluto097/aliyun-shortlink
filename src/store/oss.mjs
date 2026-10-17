@@ -122,16 +122,22 @@ export function createOssStore(options = {}) {
       const nowSec = Math.floor(Date.now() / 1000);
       const ttl = Number(ttlSec) || 0;
       let count = 0;
+      let expiry = 0;
 
       const raw = await readRaw(key);
       if (raw) {
         const [countPart, expiryPart] = String(raw).split(':');
-        const expiry = Number.parseInt(expiryPart ?? '0', 10) || 0;
-        if (!expiry || expiry > nowSec) count = Number.parseInt(countPart, 10) || 0;
+        const stored = Number.parseInt(expiryPart ?? '0', 10) || 0;
+        if (!stored || stored > nowSec) {
+          count = Number.parseInt(countPart, 10) || 0;
+          // Keep the original expiry: incrementing must not extend the window.
+          expiry = stored;
+        }
       }
 
       const next = count + 1;
-      await writeRaw(key, `${next}:${ttl > 0 ? nowSec + ttl : 0}`);
+      if (!expiry) expiry = ttl > 0 ? nowSec + ttl : 0;
+      await writeRaw(key, `${next}:${expiry}`);
       return next;
     },
   };
