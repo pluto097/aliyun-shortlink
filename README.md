@@ -265,6 +265,7 @@ npm test          # 等价于 node --test
   只做了 5 处已在 [NOTICE](NOTICE) 与文件头标注的修改：配置转义、按需口令框、footer 指向本项目、
   `noindex`、`sessionStorage` 兜底。因此**本仓库自 v2.0.0 起整体以 AGPL-3.0 分发**，v1.1.0 及更早为 MIT。
   网页表单直接调用既有的 `POST /short` 接口（`FormData.longUrl` = URL-safe 无填充 base64）。
+  网页只提供长链输入与（按需出现的）访问口令框；**自定义短码只能通过 `POST /api/shorten` 的 `code` 字段使用**。
 - **只有 ESA 需要构建**：边缘函数是单文件、且没有运行时环境变量，故有 `scripts/build-esa.mjs`；
   其余平台零构建。该打包器是"按依赖顺序拼接 + 校验顶层重名"，不是完整 bundler——
   它只对本仓库这种无循环依赖、无重名的代码成立，遇到重名会直接报错而不是产出坏代码。
