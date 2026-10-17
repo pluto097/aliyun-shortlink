@@ -1,0 +1,61 @@
+aliyun-shortlink
+===============
+
+Copyright (c) 2026 pluto097                    — this project
+Copyright (c) 2025 Aethersailor                — the landing page (see below)
+
+This project is licensed under the GNU Affero General Public License v3.0
+(AGPL-3.0). The full license text is in LICENSE.
+
+
+Third-party code
+----------------
+
+`src/ui.mjs` (the landing page) is copied verbatim from:
+
+    cf-shortlink-worker
+    https://github.com/Aethersailor/cf-shortlink-worker
+    commit 4623ac19d93f1aef361d0825b7aada9a50ee91da
+    Copyright (c) 2025 Aethersailor
+    Licensed under the GNU Affero General Public License v3.0 (AGPLv3)
+
+It was extracted from `landingHtml()` in that project's `worker.js`: the
+`<style>` block, the three i18n dictionaries, the page markup, and the
+client-side script.
+
+Modifications made while importing it (also listed in the file header of
+`src/ui.mjs`, as required by AGPL-3.0 section 5):
+
+    D1  Configuration values are HTML-escaped / URL-encoded, and the i18n
+        dictionary is serialized with "<" and ">" escaped, instead of being
+        interpolated raw.
+    D2  An optional access-token field is rendered only when CREATE_TOKEN is
+        configured, and its value is sent as an `Authorization: Bearer` header.
+        Two dictionary keys (`tokenLabel`, `tokenRequired`) were added in all
+        three languages to support it.
+    D3  Footer copy and the "open source" link point at this project instead of
+        the upstream deployment.
+    D4  `<meta name="robots" content="noindex">` was added to the `<head>`.
+    D5  `sessionStorage` reads and writes are wrapped in try/catch so blocked
+        storage cannot break the page.
+
+Everything else in this repository — the HTTP core, the storage adapters, the
+Cloudflare Pages / Workers, Aliyun Function Compute and Aliyun ESA entry points,
+the single-file bundler, the test suite and the documentation — is original
+work.
+
+
+License history
+---------------
+
+Commits up to and including tag `v1.1.0` were released under the MIT license.
+The AGPL-3.0 terms apply from the commit that introduced this NOTICE, which is
+the commit that also introduced the upstream landing page.
+
+
+Trademarks
+----------
+
+"Cloudflare", "Workers", "Pages", "Aliyun", "Function Compute", "ESA" and other
+product names are trademarks of their respective owners and are used here only
+for identification purposes.
