@@ -190,23 +190,48 @@ test('the app is built once and reused across requests', async (t) => {
 test('non-ASCII configuration survives bundling and rendering', async (t) => {
   const env = {
     ...ESA_ENV,
-    PAGE_TITLE: '鐭摼 路 娴嬭瘯',
-    PAGE_ICON: '馃敆',
-    PAGE_DESC: '蹇€熺敓鎴愮煭閾炬帴',
+    PAGE_TITLE: '短链 · 测试',
+    PAGE_ICON: '🔗',
+    PAGE_DESC: '快速生成短链接',
   };
 
   const kv = new Map();
   t.after(installRuntime(kv, env));
 
   const { code } = buildEsaBundle({ env, useProcessEnv: false });
-  assert.ok(code.includes('鐭摼 路 娴嬭瘯'), 'the title is embedded as literal UTF-8');
+  assert.ok(code.includes('短链 · 测试'), 'the title is embedded as literal UTF-8');
 
   const module = await importCode(code);
   const landing = await (await module.default.fetch(new Request('https://s.example.com/'))).text();
 
-  assert.ok(landing.includes('鐭摼 路 娴嬭瘯'), 'title renders');
-  assert.ok(landing.includes('馃敆'), 'emoji icon renders');
-  assert.ok(landing.includes('蹇€熺敓鎴愮煭閾炬帴'), 'description renders');
+  assert.ok(landing.includes('短链 · 测试'), 'title renders');
+  assert.ok(landing.includes('🔗'), 'emoji icon renders');
+  assert.ok(landing.includes('快速生成短链接'), 'description renders');
+});
+
+test('the bundle honours the ACCESS_KEY baked into it', async (t) => {
+  const kv = new Map();
+  const env = { ...ESA_ENV, ACCESS_KEY: 'key123456', LOCAL_CACHE_TTL_SEC: '0' };
+  t.after(installRuntime(kv, env));
+
+  const { code } = buildEsaBundle({ env, useProcessEnv: false });
+  const { fetch } = (await importCode(code)).default;
+
+  const root = await fetch(new Request('https://s.example.com/'));
+  assert.equal(root.status, 404);
+  assert.ok(!(await root.text()).includes('key123456'), 'the 404 page does not leak the key');
+
+  const page = await fetch(new Request('https://s.example.com/key123456/'));
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /<form id="shortenForm"/);
+
+  const created = await fetch(new Request('https://s.example.com/key123456/api/shorten', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ url: 'https://example.com/bundled' }),
+  }));
+  assert.equal(created.status, 201);
+  assert.ok(!(await created.json()).shortUrl.includes('key123456'), 'short links stay public');
 });
 
 test('entry and bundle live in the project layout used by esa.jsonc', () => {

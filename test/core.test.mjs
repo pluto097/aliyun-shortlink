@@ -72,7 +72,7 @@ test('GET / renders the upstream landing page with the configured title', async 
   assert.ok(body.includes('id="longUrl"'), 'long URL input');
   assert.ok(body.includes('id="themeBtn"') && body.includes('id="langBtn"'), 'theme and language controls');
   assert.ok(body.includes('id="resultArea"') && body.includes('id="copyBtn"'), 'result area and copy button');
-  assert.ok(body.includes("fetch('/short'"), 'the page posts to the legacy /short endpoint');
+  assert.ok(body.includes("fetch(BASE_PATH + '/short'"), 'the page posts to the legacy /short endpoint');
   assert.ok(body.includes('name="robots" content="noindex"'), 'not indexable');
   assert.ok(body.trimEnd().endsWith('</html>'));
 });
