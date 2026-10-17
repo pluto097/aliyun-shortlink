@@ -1,0 +1,16 @@
+// Aliyun ESA "函数和 Pages" project configuration.
+// Docs: https://help.aliyun.com/zh/edge-security-acceleration/esa/user-guide/build-pages
+//
+// The edge function itself is a single file, so the build step bundles
+// src/ + esa/entry.mjs into esa/dist/edge.js. Configuration is baked in at
+// build time: set the variables in the Pages project (build environment
+// variables, read from process.env) or create esa/env.json locally.
+{
+  "name": "shortlink",
+  "entry": "./esa/dist/edge.js",
+  "installCommand": "",
+  "buildCommand": "node scripts/build-esa.mjs",
+  "assets": {
+    "directory": "./public"
+  }
+}

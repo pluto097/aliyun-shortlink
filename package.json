@@ -20,6 +20,7 @@
   "scripts": {
     "dev": "node fc/server.mjs --dev",
     "start": "node fc/server.mjs",
+    "build:esa": "node scripts/build-esa.mjs",
     "test": "node --test"
   }
 }
