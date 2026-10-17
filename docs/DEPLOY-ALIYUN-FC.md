@@ -70,7 +70,7 @@ git archive --format=zip -o shortlink.zip HEAD
    | `OSS_ACCESS_KEY_ID` | 第 0 步的 AccessKeyId |
    | `OSS_ACCESS_KEY_SECRET` | 第 0 步的 AccessKeySecret |
    | `RL_MAX_REQ` / `RL_WINDOW_SEC` | `10` / `60`（可选） |
-   | `CREATE_TOKEN` | 需要私有时设置（可选） |
+   | `CREATE_TOKEN` | 需要私有时设置（可选）；设置后网页会自动出现"访问口令"输入框 |
 
 6. 规格：内存 `128 MB`、超时 `60 s` 即可。
 

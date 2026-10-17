@@ -35,11 +35,11 @@ Cloudflare 上的短链开源项目很多（本项目参考了
 | 🗃️ | **5 种存储**：ESA Edge KV、Cloudflare KV、阿里云 OSS（无 SDK，自实现 V1 签名）、Upstash Redis、内存 |
 | 📦 | **零依赖**：没有 `node_modules`；除 ESA 因"单文件"限制需要一次打包外，其它平台无需构建 |
 | 🔗 | **两套 API**：现代 JSON API + 兼容 cf-shortlink-worker 的 `POST /short`（base64 表单） |
-| 🎨 | **内置落地页**：毛玻璃风格、简繁英三语、深色模式、一键复制，全部内联无外部资源 |
+| 🎨 | **落地页**：采用 [cf-shortlink-worker](https://github.com/Aethersailor/cf-shortlink-worker) 的界面（毛玻璃卡片、简繁英三语、深色模式、复制 + toast），已署名并遵循 AGPL-3.0 |
 | 🛡️ | **防滥用**：按 IP 固定窗口限流、可选创建口令、域名黑名单、URL 严格校验 |
 | ⚡ | **写穿缓存**：分布式 KV 最终一致，也不会出现"刚创建就 404" |
 | ♻️ | **平滑迁移**：能直接读取其它短链项目写在 KV 里的「裸 URL」旧数据 |
-| ✅ | **84 个测试**：路由、校验、CORS、限流、5 个适配器、各类平台入口与打包产物（`node --test`，零依赖） |
+| ✅ | **90 个测试**：路由、校验、CORS、限流、5 个适配器、各类平台入口、打包产物与落地页契约（`node --test`，零依赖） |
 
 ## 架构
 
@@ -149,7 +149,7 @@ ESA 侧的逐项详解（含"不填会怎样"与配置校验方法）见
 | --- | --- | --- | --- |
 | `STORAGE` | 可选 | `auto` | 存储后端：`esakv` / `cfkv` / `oss` / `upstash` / `memory`；`auto` 按 `cfkv → esakv → oss → upstash → memory` 探测（ESA 上自动选中 `esakv`） |
 | `BASE_URL` | 建议 | 请求的 Host | 决定返回的 `shortUrl` 用哪个域名，尾部 `/` 自动去掉；绑定自定义域名后应设为该域名 |
-| `CREATE_TOKEN` | 可选 | 空 | 设置后创建接口需 `Authorization: Bearer <token>` 或 `X-Admin-Token`；**跳转与查询始终公开** |
+| `CREATE_TOKEN` | 可选 | 空 | 设置后创建接口需 `Authorization: Bearer <token>` 或 `X-Admin-Token`；**跳转与查询始终公开**。落地页会自动多出"访问口令"输入框 |
 | `LOCAL_CACHE_TTL_SEC` | 可选 | `300` | 本实例缓存"刚创建"链接的秒数，`0` 关闭；用于掩盖分布式 KV 的同步延迟（ESA 最迟 300 s、Cloudflare 约 60 s） |
 
 ### 界面
@@ -242,12 +242,14 @@ ESA 侧的逐项详解（含"不填会怎样"与配置校验方法）见
 npm test          # 等价于 node --test
 ```
 
-84 个用例，覆盖：
+90 个用例，覆盖：
 
 - 路由与状态码、HEAD 无 body、尾斜杠归一化、保留字、404 页面
 - URL 校验（协议、内嵌凭据、长度、域名黑名单）与自定义短码冲突
 - 创建口令（Bearer / `X-Admin-Token`）、限流窗口与 `Retry-After`、去重
 - CORS 三种模式、旧版 `/short` 兼容
+- **落地页**：上游 UI 标记齐全（表单/主题/语言/结果区）、配置转义（标题/描述/图标）、
+  口令框按需出现、三语字典同键同语言、前端 URL-safe base64 载荷契约
 - 存储：内存 TTL/容量、Cloudflare KV 绑定映射、Upstash REST 协议、OSS 签名（用 `node:crypto` 独立复算校验）
 - **ESA**：键编码单射性与字符集、Edge KV 适配器、计数器内嵌过期、长键哈希、自动探测
 - **写穿缓存**：写入即读、过期、容量上界、删除剔除
@@ -257,6 +259,12 @@ npm test          # 等价于 node --test
 
 ## 设计说明与已知限制
 
+- **落地页来自上游**：`src/ui.mjs` 逐字取自
+  [cf-shortlink-worker](https://github.com/Aethersailor/cf-shortlink-worker) 的 `landingHtml()`
+  （commit `4623ac19d93f1aef361d0825b7aada9a50ee91da`，Copyright (c) 2025 Aethersailor，AGPL-3.0），
+  只做了 5 处已在 [NOTICE](NOTICE) 与文件头标注的修改：配置转义、按需口令框、footer 指向本项目、
+  `noindex`、`sessionStorage` 兜底。因此**本仓库自 v2.0.0 起整体以 AGPL-3.0 分发**，v1.1.0 及更早为 MIT。
+  网页表单直接调用既有的 `POST /short` 接口（`FormData.longUrl` = URL-safe 无填充 base64）。
 - **只有 ESA 需要构建**：边缘函数是单文件、且没有运行时环境变量，故有 `scripts/build-esa.mjs`；
   其余平台零构建。该打包器是"按依赖顺序拼接 + 校验顶层重名"，不是完整 bundler——
   它只对本仓库这种无循环依赖、无重名的代码成立，遇到重名会直接报错而不是产出坏代码。
@@ -283,9 +291,13 @@ npm test          # 等价于 node --test
 
 ## 与参考项目的关系
 
-- 短码生成、去重与「`POST /short` + base64」的 API 形状，参考
+- **落地页界面**：`src/ui.mjs` 是
   [Aethersailor/cf-shortlink-worker](https://github.com/Aethersailor/cf-shortlink-worker)
-  （AGPL-3.0，本项目为独立实现，仅借鉴接口约定与产品思路）。
+  `landingHtml()` 的逐字移植（commit `4623ac19`，Copyright (c) 2025 Aethersailor，AGPL-3.0）。
+  该项目的 `POST /short` 契约（base64 表单 + `{Code, ShortUrl}`）也被本项目完整实现，
+  所以界面脚本无需改动即可工作。修改点见 [NOTICE](NOTICE)。
+- 短码生成、去重与「`POST /short` + base64」的 API 形状，同样参考该项目
+  （本项目为独立实现，仅借鉴接口约定与产品思路）。
 - 「单一核心 + Pages Functions + 落地页」的组织方式，参考
   [yusukebe/url-shortener](https://github.com/yusukebe/url-shortener)。
 - 平台运行时契约依据官方文档：
@@ -295,4 +307,7 @@ npm test          # 等价于 node --test
 
 ## License
 
-[MIT](LICENSE)
+[GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0）。
+
+落地页界面逐字取自 [cf-shortlink-worker](https://github.com/Aethersailor/cf-shortlink-worker)，
+版权与修改点见 [NOTICE](NOTICE)。tag `v1.1.0` 及更早的提交仍按 MIT 授权。

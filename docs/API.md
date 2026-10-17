@@ -14,6 +14,7 @@ X-Admin-Token: <CREATE_TOKEN>
 ```
 
 跳转（`GET /:code`）、元数据查询、落地页与健康检查**永远公开**，不受口令影响。
+内置落地页在检测到该配置时会自动显示"访问口令"输入框，并把它作为 `Authorization` 头发出去。
 
 ## 限流
 
@@ -89,6 +90,9 @@ const { shortUrl } = await response.json();
 ## POST /short
 
 兼容 [cf-shortlink-worker](https://github.com/Aethersailor/cf-shortlink-worker) 的接口形态，方便已有脚本直接迁移。
+
+> **内置落地页就是调用这个接口。** 页面把长链转成 URL-safe、无填充的 base64 放进 `FormData.longUrl`，
+> 再判断返回的 `Code === 1`、取 `ShortUrl` 展示。所以网页不需要额外的 API，反之你的脚本照这个形状发也能用。
 
 ### 请求
 
