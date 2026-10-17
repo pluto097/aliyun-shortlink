@@ -45,6 +45,7 @@ export const ENV_KEYS = [
   'CODE_LENGTH',
   'DEDUP_TTL_SEC',
   'CREATE_TOKEN',
+  'ACCESS_KEY',
   'BLOCK_HOSTS',
   'LOCAL_CACHE_TTL_SEC',
 ];
