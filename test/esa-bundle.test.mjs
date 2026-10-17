@@ -135,7 +135,7 @@ test('the generated bundle serves the full flow on a simulated ESA runtime', asy
   assert.equal(response.status, 200);
   const landing = await response.text();
   assert.ok(landing.includes('ESA Links'), 'PAGE_TITLE from the build env is used');
-  assert.match(landing, /<form id="form"/);
+  assert.match(landing, /<form id="shortenForm"/);
 
   response = await fetch(new Request('https://s.example.com/api/shorten', {
     method: 'POST',
@@ -184,29 +184,29 @@ test('the app is built once and reused across requests', async (t) => {
 
   const second = await module.default.fetch(new Request('https://s.example.com/'));
   assert.equal(second.status, 200);
-  assert.match(await second.text(), /<form id="form"/);
+  assert.match(await second.text(), /<form id="shortenForm"/);
 });
 
 test('non-ASCII configuration survives bundling and rendering', async (t) => {
   const env = {
     ...ESA_ENV,
-    PAGE_TITLE: '短链 · 测试',
-    PAGE_ICON: '🔗',
-    PAGE_DESC: '快速生成短链接',
+    PAGE_TITLE: '鐭摼 路 娴嬭瘯',
+    PAGE_ICON: '馃敆',
+    PAGE_DESC: '蹇€熺敓鎴愮煭閾炬帴',
   };
 
   const kv = new Map();
   t.after(installRuntime(kv, env));
 
   const { code } = buildEsaBundle({ env, useProcessEnv: false });
-  assert.ok(code.includes('短链 · 测试'), 'the title is embedded as literal UTF-8');
+  assert.ok(code.includes('鐭摼 路 娴嬭瘯'), 'the title is embedded as literal UTF-8');
 
   const module = await importCode(code);
   const landing = await (await module.default.fetch(new Request('https://s.example.com/'))).text();
 
-  assert.ok(landing.includes('短链 · 测试'), 'title renders');
-  assert.ok(landing.includes('🔗'), 'emoji icon renders');
-  assert.ok(landing.includes('快速生成短链接'), 'description renders');
+  assert.ok(landing.includes('鐭摼 路 娴嬭瘯'), 'title renders');
+  assert.ok(landing.includes('馃敆'), 'emoji icon renders');
+  assert.ok(landing.includes('蹇€熺敓鎴愮煭閾炬帴'), 'description renders');
 });
 
 test('entry and bundle live in the project layout used by esa.jsonc', () => {

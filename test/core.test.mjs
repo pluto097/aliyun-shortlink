@@ -54,7 +54,7 @@ test('readConfig clamps values and applies defaults', () => {
 // redirects & pages
 // ---------------------------------------------------------------------------
 
-test('GET / renders the landing page with the configured title', async () => {
+test('GET / renders the upstream landing page with the configured title', async () => {
   const app = await makeApp({ PAGE_TITLE: 'My Links', PAGE_ICON: '🚀', PAGE_DESC: 'fast' });
   const response = await call(app, '/');
 
@@ -63,18 +63,99 @@ test('GET / renders the landing page with the configured title', async () => {
   assert.equal(response.headers.get('cache-control'), 'no-store');
 
   const body = await response.text();
-  assert.ok(body.includes('My Links'));
-  assert.ok(body.includes('🚀'));
-  assert.ok(body.includes('fast'));
+  assert.ok(body.includes('My Links'), 'configured title renders');
+  assert.ok(body.includes('🚀'), 'configured icon renders');
+  assert.ok(body.includes('fast'), 'configured description renders');
+
+  // Markers of the cf-shortlink-worker UI we adopted verbatim.
+  assert.ok(body.includes('id="shortenForm"'), 'shorten form');
+  assert.ok(body.includes('id="longUrl"'), 'long URL input');
+  assert.ok(body.includes('id="themeBtn"') && body.includes('id="langBtn"'), 'theme and language controls');
+  assert.ok(body.includes('id="resultArea"') && body.includes('id="copyBtn"'), 'result area and copy button');
+  assert.ok(body.includes("fetch('/short'"), 'the page posts to the legacy /short endpoint');
+  assert.ok(body.includes('name="robots" content="noindex"'), 'not indexable');
   assert.ok(body.trimEnd().endsWith('</html>'));
 });
 
 test('the landing page escapes user supplied configuration', async () => {
-  const app = await makeApp({ PAGE_TITLE: '<script>alert(1)</script>' });
+  const app = await makeApp({ PAGE_TITLE: '<script>alert(1)</script>', PAGE_ICON: '"><b', PAGE_DESC: '<img onerror=x>' });
   const body = await (await call(app, '/')).text();
 
   assert.ok(!body.includes('<script>alert(1)</script>'), 'title must be escaped');
   assert.ok(body.includes('&lt;script&gt;'));
+  assert.ok(!body.includes('<img onerror=x>'), 'description must be escaped');
+  assert.ok(!body.includes('"><b'), 'icon must be encoded in the favicon');
+});
+
+test('the access token field only appears when CREATE_TOKEN is set', async () => {
+  const open = await (await call(await makeApp(), '/')).text();
+  assert.ok(!open.includes('id="tokenInput"'), 'no token field for an open deployment');
+
+  const secured = await (await call(await makeApp({ CREATE_TOKEN: 'sesame' }), '/')).text();
+  assert.ok(secured.includes('id="tokenInput"'), 'token field appears when a token is required');
+  assert.ok(secured.includes('labelToken'), 'token field is labelled');
+});
+
+test('the page payload (URL-safe base64, no padding) is accepted by /short', async () => {
+  // Mirrors exactly what the copied client script sends.
+  const app = await makeApp();
+  const target = 'https://example.com/a/b?c=中文&d=1';
+  const b64 = Buffer.from(target, 'utf8').toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+  const form = new FormData();
+  form.set('longUrl', b64);
+  const response = await call(app, '/short', { method: 'POST', body: form });
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.Code, 1);
+  assert.match(body.ShortUrl, /^https:\/\/s\.example\.com\/[A-Za-z0-9_-]{7}$/);
+
+  const code = body.ShortUrl.split('/').pop();
+  const redirect = await call(app, `/${code}`, { redirect: 'manual' });
+  assert.equal(redirect.status, 302);
+  // The stored URL is normalized by `new URL()`, so non-ASCII gets percent-encoded.
+  assert.equal(redirect.headers.get('location'), new URL(target).toString());
+});
+
+test('the token field works with a bearer token on the legacy endpoint', async () => {
+  const app = await makeApp({ CREATE_TOKEN: 'sesame' });
+  const form = new FormData();
+  form.set('longUrl', Buffer.from('https://example.com/token', 'utf8').toString('base64'));
+
+  const denied = await call(app, '/short', { method: 'POST', body: form });
+  assert.equal(denied.status, 401);
+
+  const allowed = await call(app, '/short', {
+    method: 'POST',
+    headers: { authorization: 'Bearer sesame' },
+    body: form,
+  });
+  assert.equal(allowed.status, 200);
+  assert.equal((await allowed.json()).Code, 1);
+});
+
+test('all three landing page dictionaries share the same keys', async () => {
+  const body = await (await call(await makeApp(), '/')).text();
+  const match = body.match(/const I18N = (\{.*\});/);
+  assert.ok(match, 'the dictionary is inlined into the page');
+
+  const dict = JSON.parse(match[1]);
+  assert.deepEqual(Object.keys(dict).sort(), ['en', 'zh-CN', 'zh-TW']);
+
+  const keys = Object.keys(dict.en).sort();
+  for (const lang of ['zh-CN', 'zh-TW']) {
+    assert.deepEqual(Object.keys(dict[lang]).sort(), keys, `${lang} is missing keys`);
+  }
+
+  // Guard against the copy landing in the wrong language block.
+  assert.equal(dict.en.tokenLabel, 'Access Token');
+  assert.equal(dict.en.tokenRequired, 'Access token required or incorrect.');
+  assert.match(dict['zh-CN'].tokenLabel, /[\u4e00-\u9fa5]/);
+  assert.match(dict['zh-TW'].footer, /基於/);
 });
 
 test('an existing code redirects with location and no-store', async () => {
