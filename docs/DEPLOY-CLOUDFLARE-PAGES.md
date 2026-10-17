@@ -1,5 +1,9 @@
 # 部署到 Cloudflare Pages
 
+> **这是可选后端。** 本项目首选的部署目标是
+> [阿里云 ESA「函数和 Pages」+ 边缘 KV](DEPLOY-ALIYUN-ESA.md)；
+> Cloudflare 通道保持可用，适合已有 Cloudflare 账号/域名的场景。
+
 > 读完大概需要 5 分钟。本项目零依赖、无构建步骤，Pages 会直接使用仓库里的
 > `functions/[[path]].js` 与 `public/`，不需要 `npm install`、不需要 `npm run build`。
 
