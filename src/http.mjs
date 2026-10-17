@@ -167,8 +167,13 @@ export function preflight() {
   return new Response(null, { status: 204, headers: { ...SECURITY_HEADERS } });
 }
 
-/** Constant-time-ish string comparison; avoids early-exit leaks on equal-length inputs. */
-function safeEqual(a, b) {
+/**
+ * Constant-time-ish string comparison; avoids early-exit leaks on equal-length
+ * inputs. Also used to compare the `ACCESS_KEY` path segment.
+ * @param {unknown} a
+ * @param {unknown} b
+ */
+export function safeEqual(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string') return false;
   if (a.length !== b.length) return false;
   let diff = 0;

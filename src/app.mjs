@@ -18,6 +18,7 @@ import {
   rateLimit,
   rateLimitHeaders,
   rateLimited,
+  safeEqual,
   text,
   unauthorized,
   withCors,
@@ -71,14 +72,32 @@ async function handleRequest(request, config, store) {
 async function dispatch(ctx) {
   const { request, config, store } = ctx;
   const method = request.method.toUpperCase();
-  const path = normalizePath(new URL(request.url).pathname);
+  const originalPath = normalizePath(new URL(request.url).pathname);
 
   if (method === 'OPTIONS') return preflight();
 
-  if (path === '/healthz') {
-    if (method === 'GET' || method === 'HEAD') return text('ok');
-    return methodNotAllowed(['GET', 'HEAD', 'OPTIONS']);
+  // The health check stays public in every mode: it reveals nothing and keeps
+  // uptime monitors working even when the service sits behind an access key.
+  if (originalPath === '/healthz') return healthResponse(method);
+
+  let path = originalPath;
+
+  if (config.accessKey) {
+    const stripped = stripAccessKey(originalPath, config.accessKey);
+
+    if (stripped === null) {
+      // Private mode: outside the prefix only public short links are served.
+      // API-shaped paths answer with JSON, everything else with the 404 page —
+      // neither mentions the key, so an unauthorised caller learns nothing.
+      if (looksLikeApi(originalPath)) return notFoundApi();
+      if (method === 'GET' || method === 'HEAD') return handleRedirect(ctx, originalPath);
+      return notFoundApi();
+    }
+
+    path = stripped;
   }
+
+  if (path === '/healthz') return healthResponse(method);
 
   if (path === '/') {
     if (method === 'GET' || method === 'HEAD') return html(renderLandingPage(config));
@@ -312,7 +331,7 @@ function validateInput(urlValue, codeValue, config) {
     if (!isValidCustomCode(code)) {
       return { error: jsonError(400, 'invalid_code', 'Codes are 3-64 characters of A-Z, a-z, 0-9, - or _.') };
     }
-    if (isReservedCode(code)) {
+    if (isReservedCode(code) || (config.accessKey && safeEqual(code, config.accessKey))) {
       return { error: jsonError(400, 'reserved_code', 'That short code is reserved.') };
     }
   }
@@ -370,6 +389,37 @@ function normalizePath(pathname) {
 function shortBase(config, request) {
   if (config.baseUrl) return config.baseUrl;
   return new URL(request.url).origin;
+}
+
+/** Health check response, identical in public and private mode. */
+function healthResponse(method) {
+  if (method === 'GET' || method === 'HEAD') return text('ok');
+  return methodNotAllowed(['GET', 'HEAD', 'OPTIONS']);
+}
+
+/**
+ * Strip the `/ACCESS_KEY` prefix from a normalized path.
+ *
+ * The key is compared per path segment in constant time, so `/keyabc` never
+ * matches key `key` and the comparison does not leak the key through timing.
+ *
+ * @returns {string|null} the remaining path (`/` for the root), or null when
+ *   the first segment is not the key.
+ */
+function stripAccessKey(path, accessKey) {
+  const segments = path.split('/');
+  if (!safeEqual(segments[1] ?? '', accessKey)) return null;
+  const rest = segments.slice(2).join('/');
+  return rest ? `/${rest}` : '/';
+}
+
+/** Paths that look like API calls, so private-mode 404s can stay JSON. */
+function looksLikeApi(path) {
+  return path === '/short' || path === '/api' || path.startsWith('/api/');
+}
+
+function notFoundApi() {
+  return jsonError(404, 'not_found', 'Not found.');
 }
 
 function methodNotAllowed(allowed) {
