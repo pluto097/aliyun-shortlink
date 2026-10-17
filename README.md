@@ -132,48 +132,59 @@ curl -sI https://你的域名/<上一步返回的 code>           # 302 + locati
 
 ## 环境变量
 
-三种运行时使用**完全相同**的变量名。ESA 因为没有运行时变量，需在构建期传入
-（构建环境变量或 `esa/env.json`）。
+各平台使用**完全相同**的变量名，差异只在"怎么传进去"：
+
+- **Cloudflare**：`wrangler.toml` 的 `[vars]` + 控制台密钥
+- **阿里云 FC**：控制台环境变量
+- **阿里云 ESA**：**没有运行时变量**，只能构建期注入（构建环境变量或 `esa/env.json`），**改值需重新构建部署**
+
+必填性标记：**必填** = 不填跑不起来；**条件必填** = 取决于你的资源名/域名；
+**建议** = 不填能跑但线上通常需要；**可选** = 不填即默认行为。
+ESA 侧的逐项详解（含"不填会怎样"与配置校验方法）见
+[ESA 部署文档](docs/DEPLOY-ALIYUN-ESA.md#构建环境变量必读)。
 
 ### 核心
 
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `STORAGE` | `auto` | `auto` / `esakv` / `cfkv` / `oss` / `upstash` / `memory`，留空自动探测 |
-| `BASE_URL` | 请求域名 | 短链域名，如 `https://s.example.com`；建议显式设置 |
-| `CREATE_TOKEN` | 空 | 设置后创建接口需要口令；留空则公开可创建 |
-| `LOCAL_CACHE_TTL_SEC` | `300` | 写穿缓存时长（秒），`0` 关闭；用于掩盖分布式 KV 的同步延迟 |
+| 变量 | 必填性 | 默认值 | 作用 |
+| --- | --- | --- | --- |
+| `STORAGE` | 可选 | `auto` | 存储后端：`esakv` / `cfkv` / `oss` / `upstash` / `memory`；`auto` 按 `cfkv → esakv → oss → upstash → memory` 探测（ESA 上自动选中 `esakv`） |
+| `BASE_URL` | 建议 | 请求的 Host | 决定返回的 `shortUrl` 用哪个域名，尾部 `/` 自动去掉；绑定自定义域名后应设为该域名 |
+| `CREATE_TOKEN` | 可选 | 空 | 设置后创建接口需 `Authorization: Bearer <token>` 或 `X-Admin-Token`；**跳转与查询始终公开** |
+| `LOCAL_CACHE_TTL_SEC` | 可选 | `300` | 本实例缓存"刚创建"链接的秒数，`0` 关闭；用于掩盖分布式 KV 的同步延迟（ESA 最迟 300 s、Cloudflare 约 60 s） |
 
 ### 界面
 
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `PAGE_TITLE` | `ShortLink` | 页面标题 |
-| `PAGE_ICON` | `🔗` | 页面图标（Emoji） |
-| `PAGE_DESC` | `Simple, fast, and secure short links.` | 页面描述 |
+| 变量 | 必填性 | 默认值 | 作用 |
+| --- | --- | --- | --- |
+| `PAGE_TITLE` | 可选 | `ShortLink` | 落地页标题，同时用于浏览器标签与 404 页标题 |
+| `PAGE_ICON` | 可选 | `🔗` | 落地页图标与 favicon（填 Emoji） |
+| `PAGE_DESC` | 可选 | `Simple, fast, and secure short links.` | 落地页副标题，同时作为 `meta description` |
 
 ### 安全与限流
 
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `CORS_MODE` | `open` | `open` 全开 / `list` 白名单 / `off` 关闭 |
-| `CORS_ORIGINS` | 空 | 仅 `list` 模式生效，逗号分隔 |
-| `RL_WINDOW_SEC` | `60` | 限流窗口（秒） |
-| `RL_MAX_REQ` | `10` | 窗口内每 IP 允许的**创建**次数，`0` 关闭限流（ESA 建议 0） |
-| `CODE_LENGTH` | `7` | 随机短码长度（4–32） |
-| `DEDUP_TTL_SEC` | `0` | 大于 0 时启用长链去重，值为映射缓存秒数 |
-| `BLOCK_HOSTS` | 空 | 域名黑名单，逗号分隔的正则，如 `evil\.com,spam\.net` |
+| 变量 | 必填性 | 默认值 | 作用 |
+| --- | --- | --- | --- |
+| `CORS_MODE` | 可选 | `open` | `open` 任意站点可跨域读 / `list` 仅白名单 / `off` 不发 CORS 头；只影响浏览器 JS 调 API，跳转不依赖它 |
+| `CORS_ORIGINS` | 可选 | 空 | `list` 模式允许的 Origin，逗号分隔且需带协议（`https://a.com`） |
+| `RL_WINDOW_SEC` | 可选 | `60` | 限流窗口长度（秒） |
+| `RL_MAX_REQ` | 可选 | `10` | 窗口内每 IP 允许的**创建**次数，超限 429 + `retry-after`；`0` 关闭（ESA 建议 `0`，因 KV 无 TTL） |
+| `CODE_LENGTH` | 可选 | `7` | 随机短码长度（4–32）；越短碰撞越多，碰撞会自动重试 5 次 |
+| `DEDUP_TTL_SEC` | 可选 | `0` | 大于 0 时同一长链在该秒数内复用同一短码；ESA 建议保持关闭（去重索引无 TTL 会累积） |
+| `BLOCK_HOSTS` | 可选 | 空 | 目标 host 的正则黑名单，逗号分隔，命中返回 403 `blocked_host` |
 
 ### 存储
 
-| 后端 | 变量 |
-| --- | --- |
-| 阿里云 ESA Edge KV | `ESA_KV_NAMESPACE`（默认 `shortlink`，即控制台里的存储空间名） |
-| Cloudflare KV | KV 绑定 `LINKS`（`wrangler.toml` 的 `[[kv_namespaces]]`） |
-| 阿里云 OSS | `OSS_BUCKET`、`OSS_ENDPOINT`（默认 `oss-cn-hangzhou.aliyuncs.com`）、`OSS_ACCESS_KEY_ID`、`OSS_ACCESS_KEY_SECRET`、`OSS_PREFIX`（默认 `shortlink/`）、`OSS_SECURITY_TOKEN`（STS 可选） |
-| Upstash Redis | `UPSTASH_REDIS_REST_URL`、`UPSTASH_REDIS_REST_TOKEN`（也接受 `KV_REST_API_URL` / `KV_REST_API_TOKEN`） |
+| 后端 | 该后端必填的变量 | 可选变量 |
+| --- | --- | --- |
+| 阿里云 ESA Edge KV | `ESA_KV_NAMESPACE`（**条件必填**：默认 `shortlink`，存储空间名不同时必须填） | — |
+| Cloudflare KV | KV 绑定 `LINKS`（**必填**，在 `wrangler.toml` 的 `[[kv_namespaces]]` 里声明） | — |
+| 阿里云 OSS | `OSS_BUCKET`、`OSS_ACCESS_KEY_ID`、`OSS_ACCESS_KEY_SECRET`（**必填**） | `OSS_ENDPOINT`（默认 `oss-cn-hangzhou.aliyuncs.com`）、`OSS_PREFIX`（默认 `shortlink/`）、`OSS_SECURITY_TOKEN`（STS 临时令牌） |
+| Upstash Redis | `UPSTASH_REDIS_REST_URL`、`UPSTASH_REDIS_REST_TOKEN`（**必填**，也接受 `KV_REST_API_URL` / `KV_REST_API_TOKEN`） | — |
 
 自动探测顺序：`cfkv`（存在 `LINKS` 绑定）→ `esakv`（运行时有全局 `EdgeKV`）→ `oss` → `upstash` → `memory`。
+
+> ESA 构建时只会把**白名单内**的键写进产物，变量名拼错会被静默忽略（不会报错也不会生效）。
+> 白名单即上表全部变量，外加 `OSS_*`、`UPSTASH_*`、`KV_REST_*` 前缀。
 
 ## API
 
