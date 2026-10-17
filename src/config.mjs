@@ -89,6 +89,14 @@ export function readConfig(env = {}) {
   const pageTitle = str(env, 'PAGE_TITLE') || DEFAULTS.pageTitle;
   const createToken = str(env, 'CREATE_TOKEN');
 
+  // Private mode: when set, the landing page and the API only exist under
+  // /<accessKey>/. A malformed value fails the boot instead of silently
+  // leaving the service public.
+  const accessKey = str(env, 'ACCESS_KEY');
+  if (accessKey && !/^[A-Za-z0-9_-]{4,64}$/.test(accessKey)) {
+    throw new Error('ACCESS_KEY must be 4-64 characters of A-Z, a-z, 0-9, - or _');
+  }
+
   return {
     storage: readStorage(env),
     baseUrl: trimBaseUrl(str(env, 'BASE_URL')),
@@ -112,6 +120,7 @@ export function readConfig(env = {}) {
     localCacheTtlSec: int(env, 'LOCAL_CACHE_TTL_SEC', 300, 0, 86_400),
 
     createToken,
+    accessKey,
     blockHosts: readBlockHosts(env),
 
     oss: {
