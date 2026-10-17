@@ -30,10 +30,22 @@ jobs:
       - name: Run tests
         run: node --test
 
+      - name: Build the ESA edge function bundle
+        run: |
+          node scripts/build-esa.mjs
+          test -s esa/dist/edge.js
+          # ESA expects a single self-contained module with one default export.
+          ! grep -qE '^[[:space:]]*import[[:space:]]' esa/dist/edge.js
+          test "$(grep -cE '^export[[:space:]]+default' esa/dist/edge.js)" = "1"
+          test "$(wc -c < esa/dist/edge.js)" -lt 4194304
+          echo "bundle bytes: $(wc -c < esa/dist/edge.js)"
+
       - name: Syntax check entry points
         run: |
           node --check worker.mjs
           node --check 'functions/[[path]].js'
+          node --check esa/entry.mjs
+          node --check scripts/build-esa.mjs
           node --check fc/index.js
           node --check fc/event.mjs
           node --check fc/server.mjs
