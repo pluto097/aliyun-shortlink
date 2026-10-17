@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18.20', '20', '22']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # The project has zero dependencies: nothing to install.
+      - name: Run tests
+        run: node --test
+
+      - name: Syntax check entry points
+        run: |
+          node --check worker.mjs
+          node --check 'functions/[[path]].js'
+          node --check fc/index.js
+          node --check fc/event.mjs
+          node --check fc/server.mjs
+
+      - name: Smoke test the local server
+        run: |
+          node fc/server.mjs --dev &
+          SERVER_PID=$!
+          for i in $(seq 1 50); do
+            curl -fsS http://127.0.0.1:8787/healthz && break || sleep 0.2
+          done
+          CODE=$(curl -fsS -X POST http://127.0.0.1:8787/api/shorten \
+            -H 'content-type: application/json' \
+            -d '{"url":"https://example.com"}' | sed -E 's/.*"code":"([^"]+)".*/\1/')
+          test -n "$CODE"
+          curl -fsS -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:8787/$CODE" | grep -q 302
+          kill $SERVER_PID
