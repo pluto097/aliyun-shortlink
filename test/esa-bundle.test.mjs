@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 import { buildEsaBundle, pickEnvFromProcess } from '../scripts/build-esa.mjs';
 
@@ -96,6 +97,19 @@ test('build-time environment variables are whitelisted and win over the env file
   assert.equal(env.BASE_URL, 'https://from-build.example', 'build variables override the file');
   assert.equal(env.STORAGE, 'esakv', 'file values survive when not overridden');
   assert.equal(env.PATH, undefined, 'unrelated variables are not baked in');
+});
+
+test('every key in esa/env.example.json can actually be baked in', () => {
+  // Guards documentation drift: a variable documented in the template but
+  // missing from the bundler whitelist would be silently ignored at build time.
+  const template = JSON.parse(fs.readFileSync(new URL('../esa/env.example.json', import.meta.url), 'utf8'));
+  const keys = Object.keys(template);
+  assert.ok(keys.length >= 15, `expected a full template, got ${keys.length} keys`);
+
+  for (const key of keys) {
+    const baked = pickEnvFromProcess({ [key]: 'x' });
+    assert.ok(key in baked, `${key} is in esa/env.example.json but not in the bundler whitelist`);
+  }
 });
 
 test('the generated bundle serves the full flow on a simulated ESA runtime', async (t) => {
