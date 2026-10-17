@@ -188,3 +188,72 @@ test('storage auto-detection picks the right adapter', () => {
   assert.equal(resolveStorageKind({ ...base, storage: 'memory' }, { LINKS: { get() {} } }), 'memory');
   assert.equal(resolveStorageKind({ ...base, storage: 'oss' }, {}), 'oss', 'explicit wins');
 });
+
+// ---------------------------------------------------------------------------
+// write-through cache (distributed KV propagates writes asynchronously)
+// ---------------------------------------------------------------------------
+
+/** An adapter that accepts writes but never exposes them: worst-case propagation. */
+function blackHoleAdapter() {
+  return {
+    name: 'blackhole',
+    async get() {
+      return null;
+    },
+    async put() {},
+    async del() {},
+    async incr() {
+      return 1;
+    },
+  };
+}
+
+test('LinkStore serves a link this isolate just wrote, before KV propagates', async () => {
+  const links = new LinkStore(blackHoleAdapter(), { cacheTtlSec: 300 });
+
+  await links.putLink('fresh01', 'https://example.com/fresh');
+  const link = await links.getLink('fresh01');
+
+  assert.equal(link.url, 'https://example.com/fresh');
+  assert.equal(link.code, 'fresh01');
+  assert.equal(link.expiresAt, 0);
+});
+
+test('the write-through cache expires and can be disabled', async () => {
+  let clock = 1_700_000_000_000;
+  const adapter = blackHoleAdapter();
+
+  const cached = new LinkStore(adapter, { cacheTtlSec: 60, now: () => clock });
+  await cached.putLink('cached01', 'https://example.com/cached');
+  assert.ok(await cached.getLink('cached01'));
+
+  clock += 61_000;
+  assert.equal(await cached.getLink('cached01'), null, 'the cache entry expires');
+
+  const uncached = new LinkStore(adapter, { cacheTtlSec: 0 });
+  await uncached.putLink('nocache1', 'https://example.com/none');
+  assert.equal(await uncached.getLink('nocache1'), null, 'disabled cache always reads the adapter');
+});
+
+test('the write-through cache respects link expiry, capacity and deletion', async () => {
+  let clock = 1_700_000_000_000;
+  const adapter = blackHoleAdapter();
+
+  const links = new LinkStore(adapter, { cacheTtlSec: 300, cacheMax: 2, now: () => clock });
+  await links.putLink('slot0001', 'https://example.com/1');
+  await links.putLink('slot0002', 'https://example.com/2');
+  await links.putLink('slot0003', 'https://example.com/3');
+
+  assert.equal(links.recent.size, 2, 'the cache is bounded');
+  assert.equal(await links.getLink('slot0001'), null, 'the oldest entry was evicted');
+  assert.ok(await links.getLink('slot0003'));
+
+  await links.deleteLink('slot0003');
+  assert.equal(await links.getLink('slot0003'), null, 'deletion evicts the cache entry');
+
+  // A cached link with its own TTL stops resolving once that TTL passes.
+  await links.putLink('short001', 'https://example.com/short', { ttlSec: 30 });
+  assert.ok(await links.getLink('short001'));
+  clock += 31_000;
+  assert.equal(await links.getLink('short001'), null);
+});

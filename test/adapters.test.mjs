@@ -3,7 +3,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { eventToRequest, handleEvent, responseToEvent } from '../fc/event.mjs';
-import { makeApp } from './helpers.mjs';
+import { makeApp } from '../test-support/helpers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..');

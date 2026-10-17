@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ALPHABET, generateCode, isReservedCode, isValidCustomCode } from '../src/codes.mjs';
 import { readConfig } from '../src/config.mjs';
-import { ORIGIN, call, createLink, makeApp, postJson } from './helpers.mjs';
+import { ORIGIN, call, createLink, makeApp, postJson } from '../test-support/helpers.mjs';
 
 // ---------------------------------------------------------------------------
 // codes + config
