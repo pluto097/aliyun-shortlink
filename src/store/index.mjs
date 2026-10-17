@@ -12,7 +12,9 @@
  * readable, which makes migrating an existing KV namespace painless.
  */
 
+import { sha256Hex } from '../sha256.mjs';
 import { createCfkvStore } from './cfkv.mjs';
+import { createEsaKvStore } from './esakv.mjs';
 import { createMemoryStore } from './memory.mjs';
 import { createOssStore } from './oss.mjs';
 import { createUpstashStore } from './upstash.mjs';
@@ -22,7 +24,7 @@ const DEDUP_PREFIX = 'd/';
 
 /**
  * Decide which adapter to use: explicit STORAGE wins, otherwise auto-detect.
- * @param {{storage: string, oss: object, upstash: object}} config
+ * @param {{storage: string, oss: object, upstash: object, esakv: object}} config
  * @param {Record<string, any>} env
  */
 export function resolveStorageKind(config, env = {}) {
@@ -30,6 +32,7 @@ export function resolveStorageKind(config, env = {}) {
   if (requested && requested !== 'auto') return requested;
 
   if (env?.LINKS && typeof env.LINKS.get === 'function') return 'cfkv';
+  if (typeof globalThis.EdgeKV === 'function') return 'esakv';
   if (config?.oss?.bucket && config?.oss?.accessKeySecret) return 'oss';
   if (config?.upstash?.url) return 'upstash';
   return 'memory';
@@ -49,6 +52,9 @@ export function buildAdapter(config, env = {}) {
 
     case 'oss':
       return createOssStore(config.oss);
+
+    case 'esakv':
+      return createEsaKvStore(config.esakv);
 
     case 'upstash':
       return createUpstashStore(config.upstash);
@@ -72,11 +78,7 @@ export async function createStore(config, env = {}, options = {}) {
   return new LinkStore(buildAdapter(config, env), options);
 }
 
-/** SHA-256 hex digest, used for the dedup index. */
-export async function sha256Hex(value) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(value)));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
+export { sha256Hex };
 
 /** Decode a stored value, accepting both the envelope and legacy raw URLs. */
 function parseEnvelope(raw) {
@@ -96,11 +98,18 @@ function parseEnvelope(raw) {
 export class LinkStore {
   /**
    * @param {{name: string, get: Function, put: Function, del: Function, incr: Function}} adapter
-   * @param {{now?: () => number}} [options]
+   * @param {{now?: () => number, cacheTtlSec?: number, cacheMax?: number}} [options]
    */
   constructor(adapter, options = {}) {
     this.adapter = adapter;
     this.now = options.now ?? (() => Date.now());
+    // Write-through cache for links this isolate just created. Distributed KV
+    // (Cloudflare KV, ESA Edge KV) propagates writes asynchronously, so without
+    // this a user who opens a freshly created short link can hit a 404.
+    this.cacheTtlSec = Math.max(0, Number(options.cacheTtlSec ?? 300) || 0);
+    this.cacheMax = Math.max(1, Number(options.cacheMax ?? 500) || 500);
+    /** @type {Map<string, {link: object, cachedUntil: number}>} */
+    this.recent = new Map();
   }
 
   get name() {
@@ -111,11 +120,40 @@ export class LinkStore {
     return Math.floor(this.now() / 1000);
   }
 
+  /** Remember a link we just wrote so immediate reads succeed. */
+  rememberLink(code, link) {
+    if (this.cacheTtlSec <= 0) return;
+    if (this.recent.size >= this.cacheMax) {
+      const oldest = this.recent.keys().next();
+      if (!oldest.done) this.recent.delete(oldest.value);
+    }
+    this.recent.set(code, { link, cachedUntil: this.now() + this.cacheTtlSec * 1000 });
+  }
+
+  /** Cached link for `code`, or null when absent/stale. */
+  cachedLink(code) {
+    const entry = this.recent.get(code);
+    if (!entry) return null;
+    if (entry.cachedUntil <= this.now()) {
+      this.recent.delete(code);
+      return null;
+    }
+    const { link } = entry;
+    if (link.expiresAt > 0 && link.expiresAt <= this.nowSeconds()) {
+      this.recent.delete(code);
+      return null;
+    }
+    return { ...link };
+  }
+
   /**
    * Resolve a code to a live link record, deleting it when it has expired.
    * @param {string} code
    */
   async getLink(code) {
+    const cached = this.cachedLink(code);
+    if (cached) return cached;
+
     const key = `${LINK_PREFIX}${code}`;
     const raw = await this.adapter.get(key);
     if (!raw) return null;
@@ -145,10 +183,13 @@ export class LinkStore {
       JSON.stringify(envelope),
       ttlSec > 0 ? { ttlSec } : {},
     );
+
+    this.rememberLink(code, { code, url, createdAt: nowSec, expiresAt: envelope.e });
   }
 
   /** Remove a code. */
   async deleteLink(code) {
+    this.recent.delete(code);
     await this.adapter.del(`${LINK_PREFIX}${code}`);
   }
 

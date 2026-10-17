@@ -39,7 +39,8 @@ const CODE_SHAPE = /^[A-Za-z0-9_-]{1,64}$/;
  */
 export async function createApp(env = {}, overrides = {}) {
   const config = overrides.config ?? readConfig(env);
-  const store = overrides.store ?? (await createStore(config, env, { now: overrides.now }));
+  const store = overrides.store
+    ?? (await createStore(config, env, { now: overrides.now, cacheTtlSec: config.localCacheTtlSec }));
 
   return {
     config,

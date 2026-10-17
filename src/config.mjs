@@ -9,7 +9,7 @@
  * object can never leak into a string field by accident.
  */
 
-const STORAGE_KINDS = new Set(['auto', 'memory', 'cfkv', 'upstash', 'oss']);
+const STORAGE_KINDS = new Set(['auto', 'memory', 'cfkv', 'esakv', 'upstash', 'oss']);
 const CORS_MODES = new Set(['open', 'list', 'off']);
 
 const DEFAULTS = {
@@ -107,6 +107,10 @@ export function readConfig(env = {}) {
     dedupTtlSec: int(env, 'DEDUP_TTL_SEC', DEFAULTS.dedupTtlSec, 0, 31_536_000),
     codeLength: int(env, 'CODE_LENGTH', DEFAULTS.codeLength, 4, 32),
 
+    // In-isolate write-through cache for freshly created links. Distributed KV
+    // propagates writes asynchronously (ESA Edge KV: seconds up to 300 s).
+    localCacheTtlSec: int(env, 'LOCAL_CACHE_TTL_SEC', 300, 0, 86_400),
+
     createToken,
     blockHosts: readBlockHosts(env),
 
@@ -122,6 +126,11 @@ export function readConfig(env = {}) {
     upstash: {
       url: str(env, 'UPSTASH_REDIS_REST_URL') || str(env, 'KV_REST_API_URL'),
       token: str(env, 'UPSTASH_REDIS_REST_TOKEN') || str(env, 'KV_REST_API_TOKEN'),
+    },
+
+    esakv: {
+      // Name of the Edge KV namespace created in the ESA console.
+      namespace: str(env, 'ESA_KV_NAMESPACE') || 'shortlink',
     },
   };
 }
