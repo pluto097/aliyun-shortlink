@@ -1,10 +1,10 @@
 /**
  * Routing and business logic.
  *
- * `createApp()` is the single entry point shared by every platform adapter:
- * the returned `handle(request)` is a plain Web `Request -> Response` function,
- * which is exactly what Cloudflare Pages/Workers give us and what the Aliyun FC
- * adapter converts to and from.
+ * `createApp()` is the single entry point for the Aliyun ESA edge function (and
+ * for the local preview server): the returned `handle(request)` is a plain Web
+ * `Request -> Response` function, which is exactly what ESA's edge runtime
+ * hands to `export default { fetch }`.
  */
 
 import { generateCode, isReservedCode, isValidCustomCode } from './codes.mjs';
@@ -32,8 +32,8 @@ const CREATE_ATTEMPTS = 5;
 const CODE_SHAPE = /^[A-Za-z0-9_-]{1,64}$/;
 
 /**
- * Build an app instance. Platform entries create this once per isolate /
- * instance and reuse it, so the store (and its counters) stay warm.
+ * Build an app instance. The ESA entry creates this once per isolate and
+ * reuses it, so the store (and its counters) stay warm.
  *
  * @param {Record<string, unknown>} env
  * @param {{store?: object, config?: object, now?: () => number}} [overrides]
@@ -41,7 +41,7 @@ const CODE_SHAPE = /^[A-Za-z0-9_-]{1,64}$/;
 export async function createApp(env = {}, overrides = {}) {
   const config = overrides.config ?? readConfig(env);
   const store = overrides.store
-    ?? (await createStore(config, env, { now: overrides.now, cacheTtlSec: config.localCacheTtlSec }));
+    ?? (await createStore(config, { now: overrides.now, cacheTtlSec: config.localCacheTtlSec }));
 
   return {
     config,

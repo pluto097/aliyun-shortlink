@@ -3,7 +3,7 @@
  *
  * ESA accepts exactly one JavaScript file (4 MB) with no module resolution and
  * no environment-variable binding, so this script:
- *   1. walks the ESM graph starting from `es/entry.mjs`,
+ *   1. walks the ESM graph starting from `esa/entry.mjs`,
  *   2. drops `import` statements and `export` keywords,
  *   3. concatenates the modules in dependency order (dependencies first),
  *   4. injects the deployment config as `const ESA_BUILD_ENV = {...}`.
@@ -12,8 +12,8 @@
  * the main way a naive concatenation breaks.
  *
  * Usage:
- *   node scripts/build-esa.mjs                       # uses es/env.json if present
- *   node scripts/build-esa.mjs --env es/env.json --out es/dist/edge.js
+ *   node scripts/build-esa.mjs                       # uses esa/env.json if present
+ *   node scripts/build-esa.mjs --env esa/env.json --out esa/dist/edge.js
  */
 
 import fs from 'node:fs';
@@ -28,8 +28,8 @@ const MAX_BUNDLE_BYTES = 4 * 1024 * 1024;
 
 /**
  * Configuration keys that are allowed to be baked into the bundle.
- * A Pages build supplies these as build-time environment variables, so they
- * never have to be committed.
+ * An ESA Pages build supplies these as build-time environment variables, so
+ * they never have to be committed.
  */
 export const ENV_KEYS = [
   'STORAGE',
@@ -50,8 +50,6 @@ export const ENV_KEYS = [
   'LOCAL_CACHE_TTL_SEC',
 ];
 
-const ENV_PREFIXES = ['UPSTASH_', 'OSS_', 'KV_REST_'];
-
 /** Pick known configuration keys out of a process environment. */
 export function pickEnvFromProcess(source = process.env) {
   const picked = {};
@@ -59,11 +57,6 @@ export function pickEnvFromProcess(source = process.env) {
   for (const key of ENV_KEYS) {
     const value = source?.[key];
     if (typeof value === 'string' && value !== '') picked[key] = value;
-  }
-
-  for (const [key, value] of Object.entries(source ?? {})) {
-    if (typeof value !== 'string' || value === '') continue;
-    if (ENV_PREFIXES.some((prefix) => key.startsWith(prefix))) picked[key] = value;
   }
 
   return picked;
@@ -149,8 +142,8 @@ function collectModules(entryFile) {
 /**
  * Build the bundle without touching the filesystem output.
  *
- * Configuration precedence: `process.env` (whitelisted keys only, so a Pages
- * build can supply secrets) overrides the values from `esa/env.json`.
+ * Configuration precedence: `process.env` (whitelisted keys only, so an ESA
+ * Pages build can supply secrets) overrides the values from `esa/env.json`.
  *
  * @param {{entry?: string, root?: string, env?: Record<string, string>,
  *          useProcessEnv?: boolean, processEnv?: Record<string, string|undefined>,
@@ -264,10 +257,10 @@ function main() {
   console.log(`[build:esa] config keys baked in: ${keys.length ? keys.join(', ') : '(none)'}`);
 
   if (keys.length === 0) {
-    console.warn(`[build:esa] no configuration found: copy esa/env.example.json to esa/env.json,`);
-    console.warn('[build:esa] or set the variables as Pages build environment variables.');
+    console.warn('[build:esa] no configuration found: copy esa/env.example.json to esa/env.json,');
+    console.warn('[build:esa] or set the variables as ESA Pages build environment variables.');
   }
-  console.log('[build:esa] paste that file into the ESA console, or let the Pages build use it as `entry`');
+  console.log('[build:esa] paste that file into the ESA console, or let the ESA Pages build use it as `entry`');
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

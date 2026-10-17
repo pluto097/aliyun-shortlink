@@ -1,15 +1,16 @@
 /**
  * Environment -> config normalization.
  *
- * Both platforms hand us a flat key/value map:
- *   - Cloudflare Pages / Workers: the `env` bindings object (KV namespace lives on `env.LINKS`)
- *   - Aliyun Function Compute: `process.env`
+ * Aliyun ESA has no runtime environment variables, so the deployment config is
+ * baked into the bundle by `scripts/build-esa.mjs` and arrives here as a flat
+ * key/value map (`ESA_BUILD_ENV`). The local preview server passes
+ * `process.env` instead.
  *
- * Environment values are only trusted when they are strings, so a KV binding
- * object can never leak into a string field by accident.
+ * Values are only trusted when they are strings, so nothing but plain
+ * configuration can leak into a field by accident.
  */
 
-const STORAGE_KINDS = new Set(['auto', 'memory', 'cfkv', 'esakv', 'upstash', 'oss']);
+const STORAGE_KINDS = new Set(['auto', 'memory', 'esakv']);
 const CORS_MODES = new Set(['open', 'list', 'off']);
 
 const DEFAULTS = {
@@ -122,20 +123,6 @@ export function readConfig(env = {}) {
     createToken,
     accessKey,
     blockHosts: readBlockHosts(env),
-
-    oss: {
-      bucket: str(env, 'OSS_BUCKET'),
-      endpoint: str(env, 'OSS_ENDPOINT') || 'oss-cn-hangzhou.aliyuncs.com',
-      accessKeyId: str(env, 'OSS_ACCESS_KEY_ID'),
-      accessKeySecret: str(env, 'OSS_ACCESS_KEY_SECRET'),
-      securityToken: str(env, 'OSS_SECURITY_TOKEN'),
-      prefix: str(env, 'OSS_PREFIX') || 'shortlink/',
-    },
-
-    upstash: {
-      url: str(env, 'UPSTASH_REDIS_REST_URL') || str(env, 'KV_REST_API_URL'),
-      token: str(env, 'UPSTASH_REDIS_REST_TOKEN') || str(env, 'KV_REST_API_TOKEN'),
-    },
 
     esakv: {
       // Name of the Edge KV namespace created in the ESA console.

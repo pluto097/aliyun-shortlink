@@ -4,7 +4,7 @@
  */
 
 import { createApp } from '../src/app.mjs';
-import { LinkStore, createStore } from '../src/store/index.mjs';
+import { LinkStore } from '../src/store/index.mjs';
 import { createMemoryStore } from '../src/store/memory.mjs';
 
 export const ORIGIN = 'https://s.example.com';
@@ -46,4 +46,4 @@ export async function createLink(app, payload) {
   return { response, body: await response.json() };
 }
 
-export { createApp, createMemoryStore, createStore, LinkStore };
+export { createApp, createMemoryStore, LinkStore };

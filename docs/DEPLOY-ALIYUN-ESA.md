@@ -1,11 +1,11 @@
 # 部署到阿里云 ESA「函数和 Pages」+ 边缘存储 Edge KV
 
-> **这是本项目首选的部署方式。** ESA 的「函数和 Pages」相当于阿里云版的 Cloudflare Workers/Pages，
-> 边缘存储 Edge KV 的形态也几乎和 Cloudflare KV 一致（`get`/`put`/`delete`）。
+> **这是本项目唯一的部署目标。** 边缘函数负责跑短链服务，边缘存储 Edge KV 负责存链接
+> （`get` / `put` / `delete` 三个操作就够了）。
 
 ## 为什么需要一条构建命令
 
-ESA 的边缘函数有三条硬约束，决定了配置不能像 Cloudflare 那样用环境变量在运行时注入：
+ESA 的边缘函数有三条硬约束，决定了配置不能在运行时注入：
 
 | 约束 | 影响 |
 | --- | --- |
@@ -13,12 +13,12 @@ ESA 的边缘函数有三条硬约束，决定了配置不能像 Cloudflare 那�
 | 函数**没有运行时环境变量**绑定 | 配置必须在**构建期**写进代码 |
 | 开发语言 JS(ES6)，入口是 `export default { fetch }` | 入口用 ESM 默认导出 |
 
-`scripts/build-esa.mjs`（零依赖，~250 行）负责：把 `src/` + `esa/entry.mjs` 拼成 `esa/dist/edge.js`，
+`scripts/build-esa.mjs`（零依赖）负责：把 `src/` + `esa/entry.mjs` 拼成 `esa/dist/edge.js`，
 并把配置以 `const ESA_BUILD_ENV = {...}` 写进产物头部。
 
 ```bash
 npm run build:esa        # 等价于 node scripts/build-esa.mjs
-# [build:esa] 14 modules -> esa\dist\edge.js (75.3 KB)
+# [build:esa] 10 modules -> esa\dist\edge.js (68.6 KB)
 # [build:esa] config keys baked in: STORAGE, ESA_KV_NAMESPACE, BASE_URL, RL_MAX_REQ
 ```
 
@@ -61,7 +61,7 @@ npm run build:esa        # 等价于 node scripts/build-esa.mjs
    | 变量 | 必填性 | 示例值 | 不填会怎样 |
    | --- | --- | --- | --- |
    | `ESA_KV_NAMESPACE` | **条件必填**（存储空间名不是 `shortlink` 时必填） | `shortlink` | 用默认名 `shortlink` 去读写；名字对不上则首次请求 500 |
-   | `STORAGE` | 可选 | `esakv` | 自动探测，ESA 上同样会选中 `esakv` |
+   | `STORAGE` | 可选 | `esakv` | 留空即可：入口在未设置时直接锁定 `esakv`，缺 `EdgeKV` 会明确报错 |
    | `BASE_URL` | **建议** | `https://s.example.com` | 用请求的 Host 拼短链；绑定域名后会变成预览域名 |
 
 5. 触发部署，等待构建完成。公开预览域名需带 token 访问，正式使用请**绑定自定义域名**。
@@ -90,7 +90,7 @@ npm run build:esa        # 等价于 node scripts/build-esa.mjs
 2. **优先级**（后者覆盖前者）：
    代码内默认值 → `esa/env.json`（本地文件，已 gitignore）→ **构建环境变量（`process.env`，最高）**。
 3. **只注入白名单键**，写错名字的变量会被**静默忽略**（不会报错，但也不会生效）。白名单就是下面表格里的
-   所有变量，外加 `OSS_*`、`UPSTASH_*`、`KV_REST_*` 前缀的变量。
+   所有变量（即 `scripts/build-esa.mjs` 的 `ENV_KEYS`）。
 
 > 安全提示：配置值会以明文出现在 `esa/dist/edge.js` 里。`esa/dist/` 与 `esa/env.json` 都已在 `.gitignore`，
 > 不要把产物文件提交进仓库。
@@ -111,7 +111,7 @@ npm run build:esa        # 等价于 node scripts/build-esa.mjs
 | 变量 | 必填性 | 默认值 | 作用 | 不填 / 填错的后果 |
 | --- | --- | --- | --- | --- |
 | `ESA_KV_NAMESPACE` | **条件必填**（存储空间名 ≠ `shortlink` 时必填） | `shortlink` | 指定读写哪个边缘 KV 存储空间；必须与控制台「边缘计算和 AI → KV 存储」里创建的**存储空间名完全一致** | 名字对不上 → 创建/跳转返回 500，日志里能看到 EdgeKV 读写失败或命名空间不存在 |
-| `STORAGE` | 可选 | `auto` | 存储后端：`esakv` / `cfkv` / `oss` / `upstash` / `memory`。`auto` 按 `cfkv → esakv → oss → upstash → memory` 探测 | ESA 运行时有全局 `EdgeKV`，留空同样选中 `esakv`。**切勿设成 `memory`**：实例随时回收，数据必丢 |
+| `STORAGE` | 可选 | `auto` | 存储后端：`esakv` / `memory`。`auto` 在运行时有全局 `EdgeKV` 时选 `esakv`，否则退回 `memory`；ESA 入口在未设置时直接锁定 `esakv`，缺 `EdgeKV` 会明确报错 | 生产**切勿设成 `memory`**：实例随时回收，数据必丢（`memory` 只用于本地预览与测试） |
 
 #### 域名与页面
 
@@ -141,12 +141,6 @@ npm run build:esa        # 等价于 node scripts/build-esa.mjs
 | `DEDUP_TTL_SEC` | 可选 | `0`（关闭） | >0 时同一长链在 N 秒内复用同一短码（去重索引 `d/<sha256>`） | 同样因无 TTL 会累积，**建议保持 `0`** |
 | `CODE_LENGTH` | 可选 | `7` | 随机短码长度（4–32） | 越短碰撞越多；碰撞会自动重试 5 次，仍失败返回 503 |
 | `LOCAL_CACHE_TTL_SEC` | 可选 | `300` | 本实例内存缓存**刚创建**的链接多少秒，`0` 关闭 | 用于掩盖 KV 最终一致（最迟 300 s）造成的"刚建就 404"；只对本节点有效 |
-
-#### 其它后端（ESA 上不推荐）
-
-`OSS_*`（`OSS_BUCKET`、`OSS_ENDPOINT`、`OSS_ACCESS_KEY_ID`、`OSS_ACCESS_KEY_SECRET`、`OSS_PREFIX`、
-`OSS_SECURITY_TOKEN`）与 `UPSTASH_*`（`UPSTASH_REDIS_REST_URL`、`UPSTASH_REDIS_REST_TOKEN`）也在白名单里，
-但 ESA 访问它们要走公网回源，延迟更高、还要额外保管 AK，**ESA 上建议直接用 Edge KV**。
 
 ### 怎么确认配置真的生效了
 
@@ -213,11 +207,11 @@ curl -sI https://s.example.com/<code>      # 期望 302 + location
 5. 控制台 → KV 存储 → 进入命名空间 → 应能看到形如 `k_2f<code>` 的 key。
    `/` 为什么变成 `_2f`：ESA 的 key 只允许 `[A-Za-z0-9_-]`，适配器会把其他字符按 UTF-8 字节编码成 `_hh`。
 
-## 限制与建议（ESA 与 Cloudflare 的关键差异）
+## 限制与建议
 
 | 项目 | ESA 表现 | 本项目的处理 |
 | --- | --- | --- |
-| 代码包 | 单文件 ≤ 4 MB | 产物约 75 KB |
+| 代码包 | 单文件 ≤ 4 MB | 产物约 69 KB |
 | 执行 | 响应 ≤ 120 s，网关等待 10 s，单次 fetch 子请求 ≤ 4 | 短链服务只有 1 次内部操作，远低于限制 |
 | KV key | 仅 `[A-Za-z0-9_-]`，≤ 512 B | 适配器自动编码（`k/AbC` → `k_2fAbC`） |
 | KV TTL | **不支持** | 链接过期时间写在值里，读取时惰性判断 |
@@ -227,17 +221,7 @@ curl -sI https://s.example.com/<code>      # 期望 302 + location
 **强烈建议 `RL_MAX_REQ=0` 关闭应用层限流**，改用 ESA 自带的 WAF / 频次控制。原因是 ESA KV 没有 TTL：
 限流计数对象不会自己过期，长期运行会持续累积（虽然过期时间已写在值里、不会误拦，但会占空间）。
 
-同理，去重（`DEDUP_TTL_SEC`）也只建议在 Cloudflare KV / Redis 上开启。
-
-## 与 Cloudflare 的概念对照
-
-| Cloudflare | 阿里云 ESA |
-| --- | --- |
-| Workers / Pages Functions | 函数和 Pages（边缘函数） |
-| `env.LINKS`（KV 绑定） | `new EdgeKV({ namespace })`（内置 API，无绑定概念） |
-| `wrangler.toml` / `wrangler deploy` | `esa.jsonc` + 控制台 / Git 集成 |
-| 运行时环境变量绑定 | **无** → 构建期注入 |
-| KV 支持 TTL | **不支持 TTL** |
+同理，去重（`DEDUP_TTL_SEC`）在 ESA 上也建议保持 `0`。
 
 ## 排错
 
@@ -245,17 +229,10 @@ curl -sI https://s.example.com/<code>      # 期望 302 + location
 | --- | --- |
 | 部署后访问是 404 HTML 但看不到落地页 | `public/index.html` 存在遮蔽了函数，或 `esa.jsonc` 设了 `notFoundStrategy` |
 | 创建返回 500 | 看函数日志：多为构建环境变量没注入（产物内 `ESA_BUILD_ENV` 为空）或 `ESA_KV_NAMESPACE` 名字不对 |
-| `EdgeKV is not available in this runtime` | 把函数部署成了普通 FC 函数，而不是 ESA 边缘函数；ESA 才注入 `EdgeKV` 全局 |
+| `EdgeKV is not available in this runtime` | 没有跑在 ESA 边缘函数里：本地直接跑源码（本地请用 `npm run dev`），或把函数部署到了别的平台 |
 | `STORAGE=esakv requires ESA_KV_NAMESPACE` | 构建时没给 `ESA_KV_NAMESPACE`，默认值是 `shortlink`，注意与实际命名空间一致 |
 | 跳转域名是预览域名而不是你的域名 | 没设置 `BASE_URL` |
 | 创建成功但另一地区访问 404 | KV 还没同步（最迟 300 s）；同节点靠写穿缓存不受影响 |
 | 创建返回 429 | `RL_MAX_REQ` 阈值到了；建议设 `0` 改用 ESA 风控 |
 | 构建报 `duplicate top-level declaration` | 有人给 `src/` 引入了同名顶层变量，打包器拒绝拼接（这是保护） |
 | 构建报超过 4 MB | 产物异常膨胀，检查是否误把大文件 import 进 `src/` |
-
-## 其它部署方式（可选）
-
-本项目核心与 ESA 无关，同一份 `src/` 也跑在：
-
-- 阿里云函数计算 FC 3.0 + OSS → [DEPLOY-ALIYUN-FC.md](DEPLOY-ALIYUN-FC.md)
-- Cloudflare Pages + KV → [DEPLOY-CLOUDFLARE-PAGES.md](DEPLOY-CLOUDFLARE-PAGES.md)

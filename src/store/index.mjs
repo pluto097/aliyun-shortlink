@@ -8,74 +8,60 @@
  *   d/<sha256>    dedup index   <code>
  *   r/<scope>/…   rate counters (adapters may use their own encoding)
  *
+ * Two adapters ship: `esakv` (Aliyun ESA Edge KV, the production backend) and
+ * `memory` (local preview and tests).
+ *
  * Legacy rows written by cf-shortlink-worker (a bare URL string) are still
  * readable, which makes migrating an existing KV namespace painless.
  */
 
 import { sha256Hex } from '../sha256.mjs';
-import { createCfkvStore } from './cfkv.mjs';
 import { createEsaKvStore } from './esakv.mjs';
 import { createMemoryStore } from './memory.mjs';
-import { createOssStore } from './oss.mjs';
-import { createUpstashStore } from './upstash.mjs';
 
 const LINK_PREFIX = 'k/';
 const DEDUP_PREFIX = 'd/';
 
 /**
- * Decide which adapter to use: explicit STORAGE wins, otherwise auto-detect.
- * @param {{storage: string, oss: object, upstash: object, esakv: object}} config
- * @param {Record<string, any>} env
+ * Decide which adapter to use: explicit STORAGE wins, otherwise auto-detect
+ * from the runtime (ESA edge functions expose a global `EdgeKV`).
+ * @param {{storage: string, esakv: object}} config
  */
-export function resolveStorageKind(config, env = {}) {
+export function resolveStorageKind(config) {
   const requested = config?.storage ?? 'auto';
   if (requested && requested !== 'auto') return requested;
 
-  if (env?.LINKS && typeof env.LINKS.get === 'function') return 'cfkv';
   if (typeof globalThis.EdgeKV === 'function') return 'esakv';
-  if (config?.oss?.bucket && config?.oss?.accessKeySecret) return 'oss';
-  if (config?.upstash?.url) return 'upstash';
   return 'memory';
 }
 
 /**
  * Instantiate the storage adapter.
- * @param {{storage: string, oss: object, upstash: object}} config
- * @param {Record<string, any>} env
+ * @param {{storage: string, esakv: object}} config
  */
-export function buildAdapter(config, env = {}) {
-  const kind = resolveStorageKind(config, env);
+export function buildAdapter(config) {
+  const kind = resolveStorageKind(config);
 
   switch (kind) {
-    case 'cfkv':
-      return createCfkvStore(env?.LINKS);
-
-    case 'oss':
-      return createOssStore(config.oss);
-
     case 'esakv':
       return createEsaKvStore(config.esakv);
-
-    case 'upstash':
-      return createUpstashStore(config.upstash);
 
     case 'memory':
       console.warn('[shortlink] using the in-memory store: links are lost on restart');
       return createMemoryStore();
 
     default:
-      throw new Error(`Unknown STORAGE value "${kind}" (expected auto|memory|cfkv|upstash|oss)`);
+      throw new Error(`Unknown STORAGE value "${kind}" (expected auto|esakv|memory)`);
   }
 }
 
 /**
  * Create the link store on top of the resolved adapter.
  * @param {object} config
- * @param {Record<string, any>} env
  * @param {{now?: () => number}} [options]
  */
-export async function createStore(config, env = {}, options = {}) {
-  return new LinkStore(buildAdapter(config, env), options);
+export async function createStore(config, options = {}) {
+  return new LinkStore(buildAdapter(config), options);
 }
 
 export { sha256Hex };
@@ -103,9 +89,9 @@ export class LinkStore {
   constructor(adapter, options = {}) {
     this.adapter = adapter;
     this.now = options.now ?? (() => Date.now());
-    // Write-through cache for links this isolate just created. Distributed KV
-    // (Cloudflare KV, ESA Edge KV) propagates writes asynchronously, so without
-    // this a user who opens a freshly created short link can hit a 404.
+    // Write-through cache for links this isolate just created. ESA Edge KV
+    // propagates writes asynchronously (up to 300 s), so without this a user
+    // who opens a freshly created short link can hit a 404.
     this.cacheTtlSec = Math.max(0, Number(options.cacheTtlSec ?? 300) || 0);
     this.cacheMax = Math.max(1, Number(options.cacheMax ?? 500) || 500);
     /** @type {Map<string, {link: object, cachedUntil: number}>} */

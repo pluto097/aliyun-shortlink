@@ -1,6 +1,0 @@
-#!/bin/sh
-# Entry point for the Aliyun FC custom runtime.
-# The platform starts the function by executing this file, so it must be
-# executable (chmod +x bootstrap) and listen on $PORT (default 9000).
-set -e
-exec node fc/server.mjs

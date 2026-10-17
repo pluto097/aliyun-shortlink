@@ -183,13 +183,13 @@ test('LinkStore works on top of the esakv adapter', async (t) => {
 });
 
 test('storage auto-detection prefers esakv when the runtime provides EdgeKV', (t) => {
-  const base = { storage: 'auto', oss: {}, upstash: {}, esakv: { namespace: 'shortlink' } };
+  const base = { storage: 'auto', esakv: { namespace: 'shortlink' } };
   t.after(() => { delete globalThis.EdgeKV; });
 
   delete globalThis.EdgeKV;
-  assert.equal(resolveStorageKind(base, {}), 'memory');
+  assert.equal(resolveStorageKind(base), 'memory');
 
   globalThis.EdgeKV = class {};
-  assert.equal(resolveStorageKind(base, {}), 'esakv');
-  assert.equal(resolveStorageKind({ ...base, storage: 'memory' }, {}), 'memory', 'explicit STORAGE wins');
+  assert.equal(resolveStorageKind(base), 'esakv');
+  assert.equal(resolveStorageKind({ ...base, storage: 'memory' }), 'memory', 'explicit STORAGE wins');
 });

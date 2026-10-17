@@ -42,10 +42,9 @@ Modifications made while importing it (also listed in the file header of
         the 404 page omits its "back home" link while an access key is set, so
         the key can never leak through it.
 
-Everything else in this repository — the HTTP core, the storage adapters, the
-Cloudflare Pages / Workers, Aliyun Function Compute and Aliyun ESA entry points,
-the single-file bundler, the test suite and the documentation — is original
-work.
+Everything else in this repository — the HTTP core, the Aliyun ESA Edge KV
+adapter, the ESA entry point, the single-file bundler, the local preview server,
+the test suite and the documentation — is original work.
 
 
 License history
@@ -59,6 +58,5 @@ the commit that also introduced the upstream landing page.
 Trademarks
 ----------
 
-"Cloudflare", "Workers", "Pages", "Aliyun", "Function Compute", "ESA" and other
-product names are trademarks of their respective owners and are used here only
-for identification purposes.
+"Cloudflare", "Aliyun", "ESA" and other product names are trademarks of their
+respective owners and are used here only for identification purposes.

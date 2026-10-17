@@ -486,7 +486,7 @@ export function renderLandingPage(config) {
     </div>
 
     <div class="footer">
-      <span id="labelFooter">Powered by Cloudflare Workers.</span> 
+      <span id="labelFooter">Powered by aliyun-shortlink.</span> 
       <a href="${repo}" target="_blank" id="labelOpenSource">Open Source</a>
     </div>
   </div>

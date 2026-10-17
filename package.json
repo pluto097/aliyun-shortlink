@@ -3,14 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Zero-dependency short link service that runs on both Aliyun Function Compute 3.0 and Cloudflare Pages / Workers.",
+  "description": "Zero-dependency short link service for Aliyun ESA Functions & Pages, backed by Edge KV.",
   "keywords": [
     "shortlink",
     "url-shortener",
     "aliyun",
-    "function-compute",
-    "cloudflare-pages",
-    "workers",
+    "esa",
+    "edge-function",
+    "edge-kv",
     "serverless"
   ],
   "license": "AGPL-3.0-only",
@@ -18,8 +18,7 @@
     "node": ">=18.17"
   },
   "scripts": {
-    "dev": "node fc/server.mjs --dev",
-    "start": "node fc/server.mjs",
+    "dev": "node scripts/serve.mjs",
     "build:esa": "node scripts/build-esa.mjs",
     "test": "node --test"
   }

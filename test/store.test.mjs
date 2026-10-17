@@ -1,29 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createCfkvStore } from '../src/store/cfkv.mjs';
-import { LinkStore, resolveStorageKind } from '../src/store/index.mjs';
+import { LinkStore } from '../src/store/index.mjs';
 import { createMemoryStore } from '../src/store/memory.mjs';
-
-/** A minimal in-memory stand-in for a Cloudflare KV namespace. */
-function fakeKvNamespace() {
-  const data = new Map();
-  const puts = [];
-
-  return {
-    data,
-    puts,
-    async get(key) {
-      return data.has(key) ? data.get(key) : null;
-    },
-    async put(key, value, options) {
-      data.set(key, value);
-      puts.push({ key, value, options });
-    },
-    async delete(key) {
-      data.delete(key);
-    },
-  };
-}
 
 test('memory adapter stores, overwrites and deletes', async () => {
   const store = createMemoryStore();
@@ -128,65 +106,6 @@ test('dedup index maps a URL to its code', async () => {
   await links.rememberDedup('https://example.com/d', 'CODE123', 600);
   assert.equal(await links.resolveDedup('https://example.com/d'), 'CODE123');
   assert.equal(await links.resolveDedup('https://example.com/other'), null, 'hashed per URL');
-});
-
-test('cfkv adapter maps options onto the KV binding', async () => {
-  const namespace = fakeKvNamespace();
-  const adapter = createCfkvStore(namespace);
-
-  assert.equal(adapter.name, 'cfkv');
-  await adapter.put('k/a', 'value');
-  assert.deepEqual(namespace.puts.at(-1), { key: 'k/a', value: 'value', options: undefined });
-
-  // KV requires a minimum expirationTtl of 60 seconds.
-  await adapter.put('k/b', 'value', { ttlSec: 5 });
-  assert.deepEqual(namespace.puts.at(-1).options, { expirationTtl: 60 });
-
-  await adapter.put('k/c', 'value', { ttlSec: 3600 });
-  assert.deepEqual(namespace.puts.at(-1).options, { expirationTtl: 3600 });
-
-  assert.equal(await adapter.get('k/a'), 'value');
-  assert.equal(await adapter.get('k/absent'), null);
-
-  assert.equal(await adapter.incr('r/1', 60), 1);
-  assert.equal(await adapter.incr('r/1', 60), 2);
-
-  await adapter.del('k/a');
-  assert.equal(await adapter.get('k/a'), null);
-});
-
-test('cfkv adapter rejects a missing binding', () => {
-  assert.throws(() => createCfkvStore(undefined), /LINKS/);
-  assert.throws(() => createCfkvStore({}), /LINKS/);
-});
-
-test('LinkStore works on top of the cfkv adapter', async () => {
-  const namespace = fakeKvNamespace();
-  const links = new LinkStore(createCfkvStore(namespace));
-
-  await links.putLink('kvc1234', 'https://example.com/kv');
-  assert.equal(namespace.data.has('k/kvc1234'), true, 'link is stored under k/');
-
-  const link = await links.getLink('kvc1234');
-  assert.equal(link.url, 'https://example.com/kv');
-  assert.equal(JSON.parse(namespace.data.get('k/kvc1234')).v, 1);
-});
-
-test('storage auto-detection picks the right adapter', () => {
-  const base = { storage: 'auto', oss: {}, upstash: {} };
-
-  assert.equal(resolveStorageKind(base, {}), 'memory');
-  assert.equal(resolveStorageKind(base, { LINKS: { get() {} } }), 'cfkv');
-  assert.equal(
-    resolveStorageKind({ ...base, oss: { bucket: 'b', accessKeySecret: 's' } }, {}),
-    'oss',
-  );
-  assert.equal(
-    resolveStorageKind({ ...base, upstash: { url: 'https://x.upstash.io' } }, {}),
-    'upstash',
-  );
-  assert.equal(resolveStorageKind({ ...base, storage: 'memory' }, { LINKS: { get() {} } }), 'memory');
-  assert.equal(resolveStorageKind({ ...base, storage: 'oss' }, {}), 'oss', 'explicit wins');
 });
 
 // ---------------------------------------------------------------------------

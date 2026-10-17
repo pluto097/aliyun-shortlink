@@ -42,17 +42,13 @@ jobs:
 
       - name: Syntax check entry points
         run: |
-          node --check worker.mjs
-          node --check 'functions/[[path]].js'
           node --check esa/entry.mjs
           node --check scripts/build-esa.mjs
-          node --check fc/index.js
-          node --check fc/event.mjs
-          node --check fc/server.mjs
+          node --check scripts/serve.mjs
 
       - name: Smoke test the local server
         run: |
-          node fc/server.mjs --dev &
+          node scripts/serve.mjs &
           SERVER_PID=$!
           for i in $(seq 1 50); do
             curl -fsS http://127.0.0.1:8787/healthz && break || sleep 0.2

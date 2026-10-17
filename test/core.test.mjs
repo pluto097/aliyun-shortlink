@@ -39,7 +39,6 @@ test('readConfig clamps values and applies defaults', () => {
     RL_MAX_REQ: '-5',
     CORS_MODE: 'nonsense',
     BLOCK_HOSTS: 'evil\\.com,[invalid',
-    LINKS: { get() {} },
   });
 
   assert.equal(config.codeLength, 32, 'clamped to the upper bound');
@@ -47,6 +46,7 @@ test('readConfig clamps values and applies defaults', () => {
   assert.equal(config.corsMode, 'open', 'invalid mode falls back to open');
   assert.equal(config.blockHosts.length, 1, 'invalid regex is skipped');
   assert.equal(config.storage, 'auto');
+  assert.equal(config.esakv.namespace, 'shortlink', 'the Edge KV namespace has a default');
   assert.equal(readConfig({}).pageTitle, 'ShortLink');
 });
 

@@ -1,11 +1,7 @@
 # dependencies (this project is zero-dependency, but be safe)
 node_modules/
 
-# tooling / local state
-.wrangler/
-.serverless/
-.s.yaml.lock
-.dev.vars
+# local state
 .env
 .env.*
 !.env.example
@@ -14,8 +10,7 @@ node_modules/
 esa/dist/
 esa/env.json
 
-# local data & logs
-data/
+# logs
 *.log
 npm-debug.log*
 

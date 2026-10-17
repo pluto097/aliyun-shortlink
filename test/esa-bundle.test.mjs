@@ -72,21 +72,19 @@ test('builds even without any configuration', () => {
 
 test('build-time environment variables are whitelisted and win over the env file', () => {
   const picked = pickEnvFromProcess({
-    STORAGE: 'oss',
-    OSS_BUCKET: 'bucket',
-    OSS_ACCESS_KEY_ID: 'ak',
-    UPSTASH_REDIS_REST_URL: 'https://upstash',
+    STORAGE: 'esakv',
+    ESA_KV_NAMESPACE: 'shortlink',
     PATH: '/usr/bin',
     HOME: '/root',
     SOME_UNRELATED: 'nope',
+    // Removed backends: their variables must no longer reach the bundle.
+    OSS_BUCKET: 'bucket',
+    OSS_ACCESS_KEY_ID: 'ak',
+    UPSTASH_REDIS_REST_URL: 'https://upstash',
+    KV_REST_API_URL: 'https://legacy',
   });
 
-  assert.deepEqual(Object.keys(picked).sort(), [
-    'OSS_ACCESS_KEY_ID',
-    'OSS_BUCKET',
-    'STORAGE',
-    'UPSTASH_REDIS_REST_URL',
-  ]);
+  assert.deepEqual(Object.keys(picked).sort(), ['ESA_KV_NAMESPACE', 'STORAGE']);
 
   const { env } = buildEsaBundle({
     env: { STORAGE: 'esakv', BASE_URL: 'https://from-file.example' },
@@ -237,6 +235,10 @@ test('the bundle honours the ACCESS_KEY baked into it', async (t) => {
 test('entry and bundle live in the project layout used by esa.jsonc', () => {
   const { modules } = buildEsaBundle({ env: ESA_ENV, useProcessEnv: false });
   assert.ok(modules.includes('esa/entry.mjs'));
-  assert.ok(!modules.some((name) => name.startsWith('fc/')), 'the FC adapter must not leak into the ESA bundle');
+  assert.ok(modules.includes('src/store/esakv.mjs'), 'the Edge KV adapter is the storage backend');
+  assert.ok(
+    modules.every((name) => name.startsWith('esa/') || name.startsWith('src/')),
+    `only esa/ and src/ modules belong in the bundle, got ${modules.join(', ')}`,
+  );
   assert.ok(!modules.some((name) => name.startsWith('test/')), 'tests must not leak into the bundle');
 });

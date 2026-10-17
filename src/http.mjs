@@ -1,7 +1,7 @@
 /**
- * Platform-neutral HTTP helpers: responses, CORS, client IP, rate limiting and
- * create-token verification. Everything here works on the Web `Request` /
- * `Response` primitives shared by Cloudflare and Node.js (>= 18) alike.
+ * HTTP helpers: responses, CORS, client IP, rate limiting and create-token
+ * verification. Everything here works on the Web `Request` / `Response`
+ * primitives shared by the ESA edge runtime and Node.js (>= 18).
  */
 
 const SECURITY_HEADERS = {
@@ -101,14 +101,15 @@ export function unauthorized() {
 }
 
 /**
- * Best-effort client IP. Cloudflare sets `cf-connecting-ip`; Aliyun FC forwards
- * `x-forwarded-for`; `x-real-ip` covers the remaining proxies.
+ * Best-effort client IP. ESA forwards the caller address in `x-forwarded-for`;
+ * `x-real-ip` covers deployments that add a real-client-IP header (for example
+ * with an ESA "真实客户端 IP" transform rule).
  * @param {Request} request
  * @returns {string}
  */
 export function clientIp(request) {
   const headers = request.headers;
-  const candidates = ['cf-connecting-ip', 'x-forwarded-for', 'x-real-ip', 'x-fc-client-ip'];
+  const candidates = ['x-forwarded-for', 'x-real-ip'];
 
   for (const name of candidates) {
     const value = headers.get(name);
@@ -200,7 +201,7 @@ export function hasValidCreateToken(request, config) {
 
 /**
  * Fixed-window rate limiting, counted in the configured store so it survives
- * isolate recycling and works identically on both platforms.
+ * edge-isolate recycling.
  *
  * Fails open: a broken counter must never take the redirect path down.
  * @param {{incr: (key: string, ttlSec: number) => Promise<number>}} store
