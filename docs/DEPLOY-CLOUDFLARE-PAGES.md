@@ -81,6 +81,7 @@ RL_WINDOW_SEC = "60"
 
 ```bash
 npx wrangler pages secret put CREATE_TOKEN
+npx wrangler pages secret put ACCESS_KEY     # 私有模式：页面与 API 只在 /{ACCESS_KEY}/ 下可达（可选）
 ```
 
 完整变量列表见 [README](../README.md#环境变量)。

@@ -16,6 +16,11 @@ X-Admin-Token: <CREATE_TOKEN>
 跳转（`GET /:code`）、元数据查询、落地页与健康检查**永远公开**，不受口令影响。
 内置落地页在检测到该配置时会自动显示"访问口令"输入框，并把它作为 `Authorization` 头发出去。
 
+> **私有模式（`ACCESS_KEY`）**：一旦设置，**所有 API 路径都要加前缀** ——
+> `/{ACCESS_KEY}/api/shorten`、`/{ACCESS_KEY}/short`、`/{ACCESS_KEY}/api/links/:code`。
+> 未带前缀的同名路径一律 `404`（API 形态返回 JSON）。短链跳转 `GET /:code` 与 `GET /healthz` 仍然公开。
+> 也就是说：把本文档里所有路径前面加上 `/{ACCESS_KEY}`，其余契约完全不变。
+
 ## 限流
 
 限流只作用于创建类接口，按客户端 IP 做固定窗口计数（`RL_WINDOW_SEC` / `RL_MAX_REQ`）。

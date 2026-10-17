@@ -127,6 +127,7 @@ npm run build:esa        # 等价于 node scripts/build-esa.mjs
 | 变量 | 必填性 | 默认值 | 作用 | 说明 |
 | --- | --- | --- | --- | --- |
 | `CREATE_TOKEN` | 可选 | 空（公开创建） | 设置后 `POST /api/shorten`、`POST /short` 必须带 `Authorization: Bearer <token>` 或 `X-Admin-Token: <token>`；**跳转与查询始终公开** | 值为明文写进产物；落地页会多出口令输入框 |
+| `ACCESS_KEY` | 可选 | 空（公开） | 私有模式：设置后落地页与所有 API 只在 `/{ACCESS_KEY}/…` 下可达，`/` 与未带前缀的 API 返回 404；**短链跳转保持公开** | 同样写进产物；必须是 4–64 位 `A-Za-z0-9_-`，否则构建/启动直接报错；建议 ≥16 位随机串 |
 | `CORS_MODE` | 可选 | `open` | `open` 任意站点可跨域读；`list` 仅白名单；`off` 不发 CORS 头 | 短链跳转不依赖 CORS，只有浏览器里的 JS 调 API 才需要 |
 | `CORS_ORIGINS` | 可选 | 空 | `CORS_MODE=list` 时允许的 Origin，逗号分隔，**必须带协议**（`https://a.com`） | 仅在 `list` 模式下生效 |
 | `BLOCK_HOSTS` | 可选 | 空 | 目标 URL 的 host 命中这些正则时拒绝创建（403 `blocked_host`），逗号分隔 | 例：`evil\.com,spam\.net`；非法正则会告警并跳过 |

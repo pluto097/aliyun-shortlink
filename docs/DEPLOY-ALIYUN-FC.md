@@ -71,6 +71,7 @@ git archive --format=zip -o shortlink.zip HEAD
    | `OSS_ACCESS_KEY_SECRET` | 第 0 步的 AccessKeySecret |
    | `RL_MAX_REQ` / `RL_WINDOW_SEC` | `10` / `60`（可选） |
    | `CREATE_TOKEN` | 需要私有时设置（可选）；设置后网页会自动出现"访问口令"输入框 |
+   | `ACCESS_KEY` | 私有模式（可选）：设置后页面与 API 只在 `/{ACCESS_KEY}/` 下可达，直接访问 `/` 返回 404 |
 
 6. 规格：内存 `128 MB`、超时 `60 s` 即可。
 
