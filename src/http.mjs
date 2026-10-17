@@ -160,13 +160,11 @@ export function withCors(request, response, config) {
 }
 
 /**
- * CORS preflight response.
- * @param {Request} request
- * @param {{corsMode: string, corsOrigins: string[]}} config
+ * CORS preflight response. The routing pipeline applies CORS headers to every
+ * response (including this one), so the preflight body stays header-free.
  */
-export function preflight(request, config) {
-  const response = new Response(null, { status: 204, headers: { ...SECURITY_HEADERS } });
-  return withCors(request, response, config);
+export function preflight() {
+  return new Response(null, { status: 204, headers: { ...SECURITY_HEADERS } });
 }
 
 /** Constant-time-ish string comparison; avoids early-exit leaks on equal-length inputs. */
