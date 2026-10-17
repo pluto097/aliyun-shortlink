@@ -18,6 +18,9 @@
  *   D4  <meta name="robots" content="noindex"> is added.
  *   D5  sessionStorage access is wrapped in try/catch so blocked storage
  *       cannot break the page.
+ *   D6  client requests are prefixed with the configured access-key path, and
+ *       the 404 page omits its "back home" link while an access key is set so
+ *       it can never reveal the key.
  * ---------------------------------------------------------------------------
  */
 
@@ -51,6 +54,10 @@ export function renderLandingPage(config) {
   const icon = config.pageIcon;
   const desc = config.pageDesc;
   const repo = REPO_URL;
+
+  // D6: in private mode the page is mounted under /<accessKey>/, so its client
+  // script has to call the API through the same prefix.
+  const basePath = config.accessKey ? '/' + config.accessKey : '';
 
   // D2: rendered only when the deployment requires a token.
   const tokenFieldHtml = config.createToken
@@ -489,6 +496,7 @@ export function renderLandingPage(config) {
   <!-- Inject Dictionary -->
   <script>
     const I18N = ${scriptJson(i18n)};
+    const BASE_PATH = ${scriptJson(basePath)};
   </script>
 
   <script>
@@ -638,7 +646,7 @@ export function renderLandingPage(config) {
         const headers = {};
         if (els.tokenInput && els.tokenInput.value.trim()) headers.Authorization = 'Bearer ' + els.tokenInput.value.trim();
 
-        const response = await fetch('/short', {
+        const response = await fetch(BASE_PATH + '/short', {
           method: 'POST',
           headers: headers,
           body: formData
@@ -710,6 +718,10 @@ const NOT_FOUND_CSS = [
 export function renderNotFoundPage(config, code = '') {
   const codeSuffix = code ? ' <code>/' + escapeHtml(code) + '</code>' : '';
 
+  // D6: while an access key is configured this page is what unauthorised
+  // visitors see, so it must not contain a link that embeds the key.
+  const homeLink = config.accessKey ? '' : '<a href="/">返回首页</a>\n';
+
   return (
     '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n' +
     '<meta charset="utf-8">\n' +
@@ -721,7 +733,7 @@ export function renderNotFoundPage(config, code = '') {
     '<p class="big">404</p>\n' +
     '<h1>链接不存在</h1>\n' +
     '<p>这个短码没有对应的链接，可能已过期或被删除。' + codeSuffix + '</p>\n' +
-    '<a href="/">返回首页</a>\n' +
+    homeLink +
     '</main>\n</body>\n</html>'
   );
 }

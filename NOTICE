@@ -38,6 +38,9 @@ Modifications made while importing it (also listed in the file header of
     D4  `<meta name="robots" content="noindex">` was added to the `<head>`.
     D5  `sessionStorage` reads and writes are wrapped in try/catch so blocked
         storage cannot break the page.
+    D6  Client requests are prefixed with the configured `ACCESS_KEY` path, and
+        the 404 page omits its "back home" link while an access key is set, so
+        the key can never leak through it.
 
 Everything else in this repository — the HTTP core, the storage adapters, the
 Cloudflare Pages / Workers, Aliyun Function Compute and Aliyun ESA entry points,
