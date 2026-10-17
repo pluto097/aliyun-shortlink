@@ -14,7 +14,7 @@ const ESA_ENV = {
  * Install a fake ESA runtime: the EdgeKV global plus the config channel the
  * entry point reads. Returns a cleanup function.
  */
-function installRuntime(store) {
+function installRuntime(store, runtimeEnv = ESA_ENV) {
   class FakeEdgeKV {
     constructor(config) {
       this.namespace = config.namespace;
@@ -34,7 +34,7 @@ function installRuntime(store) {
   }
 
   globalThis.EdgeKV = FakeEdgeKV;
-  globalThis.__SHORTLINK_ENV__ = ESA_ENV;
+  globalThis.__SHORTLINK_ENV__ = runtimeEnv;
 
   return () => {
     delete globalThis.EdgeKV;
@@ -171,6 +171,28 @@ test('the app is built once and reused across requests', async (t) => {
   const second = await module.default.fetch(new Request('https://s.example.com/'));
   assert.equal(second.status, 200);
   assert.match(await second.text(), /<form id="form"/);
+});
+
+test('non-ASCII configuration survives bundling and rendering', async (t) => {
+  const env = {
+    ...ESA_ENV,
+    PAGE_TITLE: '短链 · 测试',
+    PAGE_ICON: '🔗',
+    PAGE_DESC: '快速生成短链接',
+  };
+
+  const kv = new Map();
+  t.after(installRuntime(kv, env));
+
+  const { code } = buildEsaBundle({ env, useProcessEnv: false });
+  assert.ok(code.includes('短链 · 测试'), 'the title is embedded as literal UTF-8');
+
+  const module = await importCode(code);
+  const landing = await (await module.default.fetch(new Request('https://s.example.com/'))).text();
+
+  assert.ok(landing.includes('短链 · 测试'), 'title renders');
+  assert.ok(landing.includes('🔗'), 'emoji icon renders');
+  assert.ok(landing.includes('快速生成短链接'), 'description renders');
 });
 
 test('entry and bundle live in the project layout used by esa.jsonc', () => {
